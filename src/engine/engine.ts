@@ -25,6 +25,7 @@ export type EngineSnapshot = {
   camera: Camera
   pdfPages: (EnginePdfPage & { rendered: boolean })[]
   tool: ActiveTool
+  fingerDraw: boolean
   strokes: {
     id: string
     tool: Stroke['tool']
@@ -52,6 +53,10 @@ export type EngineOptions = {
   onStrokesDelete?: (ids: string[]) => void
   /** Called when undo/redo availability may have changed. */
   onHistoryChange?: (state: { canUndo: boolean; canRedo: boolean }) => void
+  /** Initial finger-drawing state (touch draws instead of panning). */
+  fingerDraw?: boolean
+  /** Called on every pen pointerdown, so the app can turn finger drawing off. */
+  onPenSeen?: () => void
 }
 
 type Draft = {
@@ -62,6 +67,7 @@ type Draft = {
   color: string
   size: number
   erased: Stroke[]
+  finger: boolean
 }
 
 const MOUSE_PRESSURE = 0.5
@@ -100,6 +106,7 @@ export class Engine {
   private draft: Draft | null = null
   private toolState: ToolState = { tool: 'pen', color: DEFAULT_PEN.color, size: DEFAULT_PEN.size }
   private readonly history = createHistory()
+  private fingerDraw = true
   private readonly touches = new Map<number, Point>()
   private cssWidth = 0
   private cssHeight = 0
@@ -112,6 +119,7 @@ export class Engine {
   constructor(host: HTMLElement, options: EngineOptions = {}) {
     this.host = host
     this.options = options
+    this.fingerDraw = options.fingerDraw ?? true
     if (options.camera) this.camera = { ...options.camera }
     if (options.strokes) this.strokes = [...options.strokes]
     this.committed.dataset.layer = 'committed'
@@ -155,6 +163,7 @@ export class Engine {
       camera: { ...this.camera },
       pdfPages: this.pdfPages.map((p) => ({ ...p, rendered: this.pdfRenderer?.hasBitmap(p) ?? false })),
       tool: this.toolState.tool,
+      fingerDraw: this.fingerDraw,
       strokes: this.strokes.map((s) => ({
         id: s.id,
         tool: s.tool,
@@ -171,6 +180,10 @@ export class Engine {
 
   setToolState(next: Partial<ToolState>): void {
     this.toolState = { ...this.toolState, ...next }
+  }
+
+  setFingerDraw(on: boolean): void {
+    this.fingerDraw = on
   }
 
   getToolState(): ToolState {
@@ -255,16 +268,24 @@ export class Engine {
   private onPointerDown = (e: PointerEvent) => {
     e.preventDefault()
     if (e.pointerType === 'touch') {
-      if (this.draft) return // palm rejection while the pen is down
+      if (this.draft && !this.draft.finger) return // palm rejection while the pen is down
+      if (this.draft) this.abortDraft() // a second finger turns a finger stroke into a pan/zoom
+      const wasEmpty = this.touches.size === 0
       this.touches.set(e.pointerId, this.toScreen(e))
       this.capture(e)
+      if (this.fingerDraw && wasEmpty) this.startDraft(e, true)
       return
     }
     if (e.pointerType !== 'pen' && e.pointerType !== 'mouse') return
+    if (e.pointerType === 'pen') this.options.onPenSeen?.()
     if (e.pointerType === 'mouse' && e.button !== 0) return
     if (this.draft) return
     this.touches.clear() // a resting palm must not keep panning once the pen lands
-    const simulatePressure = e.pointerType === 'mouse'
+    this.startDraft(e, false)
+  }
+
+  private startDraft(e: PointerEvent, finger: boolean): void {
+    const simulatePressure = e.pointerType !== 'pen'
     const rect = this.live.getBoundingClientRect()
     const { tool, color, size } = this.toolState
     const draft: Draft = {
@@ -275,6 +296,7 @@ export class Engine {
       color,
       size,
       erased: [],
+      finger,
     }
     this.draft = draft
     if (tool === 'eraser') this.eraseAt(draft, draft.points[0]![0], draft.points[0]![1])
@@ -283,8 +305,9 @@ export class Engine {
   }
 
   private onPointerMove = (e: PointerEvent) => {
-    if (this.draft && e.pointerId === this.draft.pointerId && e.pointerType !== 'touch') {
+    if (this.draft && e.pointerId === this.draft.pointerId) {
       e.preventDefault()
+      if (this.draft.finger) this.touches.set(e.pointerId, this.toScreen(e))
       const rect = this.live.getBoundingClientRect()
       const coalesced = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : []
       const samples = coalesced.length > 0 ? coalesced : [e]
@@ -323,8 +346,9 @@ export class Engine {
   }
 
   private onPointerUp = (e: PointerEvent) => {
-    if (this.draft && e.pointerId === this.draft.pointerId && e.pointerType !== 'touch') {
+    if (this.draft && e.pointerId === this.draft.pointerId) {
       e.preventDefault()
+      this.touches.delete(e.pointerId)
       this.commitDraft()
       return
     }
@@ -332,14 +356,9 @@ export class Engine {
   }
 
   private onPointerCancel = (e: PointerEvent) => {
-    if (this.draft && e.pointerId === this.draft.pointerId && e.pointerType !== 'touch') {
-      if (this.draft.tool === 'eraser') {
-        // Strokes were already tombstoned while moving; keep that undoable.
-        this.commitDraft()
-        return
-      }
-      this.draft = null
-      this.requestLive()
+    if (this.draft && e.pointerId === this.draft.pointerId) {
+      this.touches.delete(e.pointerId)
+      this.discardDraft()
       return
     }
     this.touches.delete(e.pointerId)
@@ -355,6 +374,33 @@ export class Engine {
     } else {
       this.setCamera(panBy(this.camera, -dx, -dy))
     }
+  }
+
+  /** Drops the stroke in progress; an eraser draft is kept (its erasures already happened) so it stays undoable. */
+  private discardDraft(): void {
+    if (!this.draft) return
+    if (this.draft.tool === 'eraser') {
+      this.commitDraft()
+      return
+    }
+    this.draft = null
+    this.requestLive()
+  }
+
+  /** Cancels the stroke in progress completely; an eraser draft puts back what it already erased. */
+  private abortDraft(): void {
+    const draft = this.draft
+    if (!draft) return
+    if (draft.tool === 'eraser' && draft.erased.length > 0) {
+      for (const s of draft.erased) {
+        this.strokes.push(s)
+        this.options.onStrokeCommit?.(s)
+      }
+      this.committedDirty = true
+      this.schedule()
+    }
+    this.draft = null
+    this.requestLive()
   }
 
   private commitDraft(): void {

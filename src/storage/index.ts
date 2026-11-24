@@ -62,9 +62,10 @@ export async function deleteBoard(id: string): Promise<void> {
     .modify({ deletedAt: now, updatedAt: now })
 }
 
+/** Also clears a tombstone when the same stroke is put back (undo of an erase, cancelled eraser gesture). */
 export async function addStroke(boardId: string, stroke: NewStroke): Promise<void> {
   await db.transaction('rw', db.boards, db.strokes, async () => {
-    await db.strokes.add({ ...stroke, boardId, ownerId: null, deletedAt: null })
+    await db.strokes.put({ ...stroke, boardId, ownerId: null, deletedAt: null })
     await db.boards.where('id').equals(boardId).modify({ updatedAt: Date.now() })
   })
 }

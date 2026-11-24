@@ -21,7 +21,7 @@ These were decided up front. Do not change them without an issue that says so.
 
 - **Stack:** Vite + React + TypeScript. The drawing engine is framework-free TypeScript under `src/engine/`; React renders only the UI around it (toolbar, board list, dialogs).
 - **Canvas model:** one infinite canvas per board. Everything stored is in **world coordinates** (CSS px at zoom 1). The camera is `{ x, y, zoom }`; convert screen ↔ world only at the input and render boundaries.
-- **Input:** `pointerType` `pen` and `mouse` draw; `touch` never draws (palm rejection). One finger pans, two fingers pinch-zoom; trackpad/mouse wheel pans, ctrl/⌘ + wheel zooms. The canvas element has `touch-action: none`. Use `getCoalescedEvents()` when available.
+- **Input:** `pointerType` `pen` and `mouse` draw; `touch` draws only when the 「手指繪圖」 (finger drawing) toggle is on (`localStorage` `whiteboard:fingerDraw`; default on until the first `pen` pointer turns it off). With it on, one finger draws with the current tool, and a second finger going down discards that stroke; touch is ignored while a pen stroke is in progress. With it off, one finger pans. Two fingers always pinch-zoom and pan; trackpad/mouse wheel pans, ctrl/⌘ + wheel zooms. The canvas element has `touch-action: none`. Use `getCoalescedEvents()` when available.
 - **Rendering:** strokes are stored as raw input points and turned into outlines with `perfect-freehand` at render time. Two stacked canvases: a committed layer (cached, redrawn only on change or camera move) and a live layer that draws only the stroke in progress.
 - **Local storage:** IndexedDB through Dexie, schema versioned with Dexie migrations. IDs are `crypto.randomUUID()`; timestamps are epoch milliseconds.
 

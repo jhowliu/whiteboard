@@ -1,6 +1,15 @@
 import { defineConfig, devices } from '@playwright/test'
 
 const PORT = 4173
+const ORIGIN = `http://localhost:${PORT}`
+
+// Specs written before finger drawing existed expect touch to pan, so they run with the toggle stored off.
+// finger-draw.spec.ts starts from a clean first visit (default on) in its own projects.
+const fingerDrawOff = {
+  cookies: [],
+  origins: [{ origin: ORIGIN, localStorage: [{ name: 'whiteboard:fingerDraw', value: 'false' }] }],
+}
+const ipad = { ...devices['iPad Pro 11'], serviceWorkers: 'block' as const }
 
 export default defineConfig({
   testDir: './e2e',
@@ -14,14 +23,20 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   projects: [
-    { name: 'chromium', testIgnore: '**/journeys/**', use: { ...devices['Desktop Chrome'] } },
+    {
+      name: 'chromium',
+      testIgnore: ['**/journeys/**', '**/finger-draw.spec.ts'],
+      use: { ...devices['Desktop Chrome'], storageState: fingerDrawOff },
+    },
+    { name: 'chromium', testMatch: '**/finger-draw.spec.ts', use: { ...devices['Desktop Chrome'] } },
     // Closest automated stand-in for iPad Safari + Apple Pencil.
     // Service workers are blocked: they bypass page.route() mocks in WebKit, and the offline test is chromium-only.
     {
       name: 'webkit-ipad',
-      testIgnore: '**/journeys/**',
-      use: { ...devices['iPad Pro 11'], serviceWorkers: 'block' },
+      testIgnore: ['**/journeys/**', '**/finger-draw.spec.ts'],
+      use: { ...ipad, storageState: fingerDrawOff },
     },
+    { name: 'webkit-ipad', testMatch: '**/finger-draw.spec.ts', use: ipad },
     // Paced walkthroughs recorded as video; scripts/journey-gif.mjs turns them into GIF evidence for the PR.
     {
       name: 'journey',
