@@ -1,4 +1,5 @@
 import { expect, type Page, test } from '@playwright/test'
+import { center, drawStroke, pointer, snapshot, touchDrag, wheel, type PointerInit, type Snapshot } from './helpers.ts'
 
 // Issue #1: infinite canvas engine. State is read through the read-only
 // `window.__whiteboard.snapshot()` described in the issue:
@@ -8,138 +9,10 @@ import { expect, type Page, test } from '@playwright/test'
 // which must be the board's canvas. Synthetic events have no coalesced
 // events, so the engine must fall back to the event itself.
 
-type Point3 = [number, number, number]
-type Snapshot = {
-  camera: { x: number; y: number; zoom: number }
-  strokes: {
-    id: string
-    tool: string
-    pointCount: number
-    bbox: { minX: number; minY: number; maxX: number; maxY: number }
-    points: Point3[]
-  }[]
-}
-type PointerInit = {
-  type: 'pointerdown' | 'pointermove' | 'pointerup'
-  pointerId: number
-  pointerType: 'pen' | 'mouse' | 'touch'
-  x: number
-  y: number
-  pressure?: number
-  isPrimary?: boolean
-}
-
 declare global {
   interface Window {
     __whiteboard?: { snapshot(): Snapshot }
   }
-}
-
-async function snapshot(page: Page): Promise<Snapshot> {
-  return page.evaluate(() => {
-    const wb = window.__whiteboard
-    if (!wb) throw new Error('window.__whiteboard is missing')
-    return JSON.parse(JSON.stringify(wb.snapshot())) as Snapshot
-  })
-}
-
-async function boardBox(page: Page) {
-  const box = await page.getByTestId('board-root').boundingBox()
-  if (!box) throw new Error('board-root has no box')
-  return box
-}
-
-async function center(page: Page) {
-  const box = await boardBox(page)
-  return { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) }
-}
-
-async function pointer(page: Page, events: PointerInit[]) {
-  await page.evaluate((events) => {
-    for (const e of events) {
-      const target = document.elementFromPoint(e.x, e.y)
-      if (!(target instanceof HTMLCanvasElement)) {
-        throw new Error(`expected a canvas at ${e.x},${e.y}, got ${target?.tagName}`)
-      }
-      const down = e.type !== 'pointerup'
-      target.dispatchEvent(
-        new PointerEvent(e.type, {
-          bubbles: true,
-          cancelable: true,
-          composed: true,
-          pointerId: e.pointerId,
-          pointerType: e.pointerType,
-          isPrimary: e.isPrimary ?? true,
-          clientX: e.x,
-          clientY: e.y,
-          screenX: e.x,
-          screenY: e.y,
-          pressure: e.pressure ?? (down ? 0.5 : 0),
-          button: e.type === 'pointermove' ? -1 : 0,
-          buttons: down ? 1 : 0,
-          width: 1,
-          height: 1,
-        }),
-      )
-    }
-  }, events)
-}
-
-async function drawStroke(
-  page: Page,
-  pointerType: 'pen' | 'mouse',
-  path: { x: number; y: number; pressure?: number }[],
-  pointerId = 10,
-) {
-  const events: PointerInit[] = path.map((p, i) => ({
-    type: i === 0 ? 'pointerdown' : 'pointermove',
-    pointerId,
-    pointerType,
-    x: p.x,
-    y: p.y,
-    pressure: p.pressure,
-  }))
-  const last = path[path.length - 1]
-  events.push({ type: 'pointerup', pointerId, pointerType, x: last.x, y: last.y, pressure: 0 })
-  await pointer(page, events)
-}
-
-async function touchDrag(page: Page, from: { x: number; y: number }, to: { x: number; y: number }, steps = 8) {
-  const events: PointerInit[] = [{ type: 'pointerdown', pointerId: 1, pointerType: 'touch', ...from }]
-  for (let i = 1; i <= steps; i++) {
-    events.push({
-      type: 'pointermove',
-      pointerId: 1,
-      pointerType: 'touch',
-      x: from.x + ((to.x - from.x) * i) / steps,
-      y: from.y + ((to.y - from.y) * i) / steps,
-    })
-  }
-  events.push({ type: 'pointerup', pointerId: 1, pointerType: 'touch', ...to })
-  await pointer(page, events)
-}
-
-async function wheel(page: Page, at: { x: number; y: number }, deltaX: number, deltaY: number, ctrlKey = false) {
-  await page.evaluate(
-    ({ at, deltaX, deltaY, ctrlKey }) => {
-      const target = document.elementFromPoint(at.x, at.y)
-      if (!(target instanceof HTMLCanvasElement)) throw new Error('expected a canvas under the wheel')
-      target.dispatchEvent(
-        new WheelEvent('wheel', {
-          bubbles: true,
-          cancelable: true,
-          composed: true,
-          clientX: at.x,
-          clientY: at.y,
-          deltaX,
-          deltaY,
-          deltaMode: 0,
-          ctrlKey,
-        }),
-      )
-    },
-    { at, deltaX, deltaY, ctrlKey },
-  )
 }
 
 async function strokeCount(page: Page) {

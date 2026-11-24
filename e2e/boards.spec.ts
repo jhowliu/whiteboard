@@ -1,4 +1,5 @@
 import { expect, type Page, test } from '@playwright/test'
+import { boardBox, pointer, type PointerInit } from './helpers.ts'
 
 // Issue #5: board list + local persistence. Expected UI hooks (data-testid):
 //   board-list, new-board (button), board-item (one per board; contains its title),
@@ -14,23 +15,14 @@ async function snap(page: Page): Promise<Snap> {
 }
 
 async function draw(page: Page, y: number) {
-  await page.evaluate((y) => {
-    const box = document.querySelector('[data-testid="board-root"]')!.getBoundingClientRect()
-    const x0 = Math.round(box.x + box.width / 2) - 60
-    const target = document.elementFromPoint(x0, y)
-    if (!(target instanceof HTMLCanvasElement)) throw new Error('expected canvas')
-    const fire = (type: string, x: number, p: number) =>
-      target.dispatchEvent(
-        new PointerEvent(type, {
-          bubbles: true, cancelable: true, composed: true, pointerId: 10, pointerType: 'pen',
-          isPrimary: true, clientX: x, clientY: y, pressure: p, button: type === 'pointermove' ? -1 : 0,
-          buttons: type === 'pointerup' ? 0 : 1,
-        }),
-      )
-    fire('pointerdown', x0, 0.5)
-    for (let i = 1; i <= 5; i++) fire('pointermove', x0 + i * 10, 0.6)
-    fire('pointerup', x0 + 50, 0)
-  }, y)
+  const box = await boardBox(page)
+  const x0 = Math.round(box.x + box.width / 2) - 60
+  const events: PointerInit[] = [{ type: 'pointerdown', pointerId: 10, pointerType: 'pen', x: x0, y, pressure: 0.5 }]
+  for (let i = 1; i <= 5; i++) {
+    events.push({ type: 'pointermove', pointerId: 10, pointerType: 'pen', x: x0 + i * 10, y, pressure: 0.6 })
+  }
+  events.push({ type: 'pointerup', pointerId: 10, pointerType: 'pen', x: x0 + 50, y, pressure: 0 })
+  await pointer(page, events)
 }
 
 async function newBoard(page: Page) {
