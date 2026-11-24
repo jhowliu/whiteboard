@@ -46,6 +46,7 @@ body {
 }
 
 .board-root {
+  background: #ffffff; /* white paper in both colour schemes */
   flex: 1;
   position: relative;
   overflow: hidden;
