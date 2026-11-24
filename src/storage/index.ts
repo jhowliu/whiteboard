@@ -128,3 +128,11 @@ export async function getPdfBlob(pdfId: string): Promise<Blob | undefined> {
   if (!stored) return undefined
   return stored instanceof ArrayBuffer ? new Blob([stored], { type: 'application/pdf' }) : stored
 }
+
+/** The PDFs imported onto a board (one entry per file), with their pages. */
+export async function listBoardPdfs(boardId: string): Promise<{ id: string; name: string }[]> {
+  const pages = await db.pdfPages.where('boardId').equals(boardId).toArray()
+  const ids = [...new Set(pages.map((p) => p.pdfId))]
+  const files = await Promise.all(ids.map((id) => db.pdfFiles.get(id)))
+  return files.flatMap((f) => (f ? [{ id: f.id, name: f.name }] : []))
+}
