@@ -6,6 +6,10 @@ verify:
   - npm test
   - npm run build
   - CI=1 npm run e2e
+reports:
+  evidence:
+    - test-results/**/*.png
+    - test-results/**/*.webm
 runtime:
   dockerfile: .agent-cage/Dockerfile
 agent:
