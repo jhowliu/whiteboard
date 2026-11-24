@@ -1,0 +1,258 @@
+$ npm run lint
+exit code: 0
+stdout:
+
+> whiteboard@0.0.0 lint
+> eslint .
+
+stderr:
+npm notice
+npm notice New major version of npm available! 10.9.9 -> 12.2.3
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.3
+npm notice To update run: npm install -g npm@12.2.3
+npm notice
+$ npm run typecheck
+exit code: 0
+stdout:
+
+> whiteboard@0.0.0 typecheck
+> tsc -b
+
+stderr:
+npm notice
+npm notice New major version of npm available! 10.9.9 -> 12.2.3
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.3
+npm notice To update run: npm install -g npm@12.2.3
+npm notice
+$ npm test
+exit code: 0
+stdout:
+
+> whiteboard@0.0.0 test
+> vitest run
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.1.1 [39m[90m/workspace[39m
+
+ [32m✓[39m src/engine/pdf.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/engine/stroke.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/engine/camera.test.ts [2m([22m[2m35 tests[22m[2m)[22m[32m 24[2mms[22m[39m
+ [32m✓[39m src/storage/pdf.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 28[2mms[22m[39m
+ [32m✓[39m src/storage/repository.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 74[2mms[22m[39m
+ [32m✓[39m src/App.test.tsx [2m([22m[2m1 test[22m[2m)[22m[32m 66[2mms[22m[39m
+ [32m✓[39m src/App.auth.test.tsx [2m([22m[2m23 tests[22m[2m)[22m[33m 906[2mms[22m[39m
+   [32m✓[39m local-only mode (no Supabase env vars) [2m(4)[22m
+     [33m[2m✓[22m[39m renders the app without a 登入 button when neither variable is set[33m 324[2mms[22m[39m
+ [32m✓[39m src/pwa/pwa.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 1824[2mms[22m[39m
+ [32m✓[39m supabase/tests/schema.test.ts [2m([22m[2m78 tests[22m[2m)[22m[33m 51336[2mms[22m[39m
+   [32m✓[39m supabase migrations [2m(78)[22m
+     [32m✓[39m files [2m(2)[22m
+       [33m[2m✓[22m[39m are named <version>_<name>.sql so `supabase db push` picks them up[33m 1374[2mms[22m[39m
+       [33m[2m✓[22m[39m apply cleanly after the stub and create all four tables[33m 746[2mms[22m[39m
+     [32m✓[39m schema [2m(22)[22m
+       [33m[2m✓[22m[39m boards has uuid id/owner_id and a non-null timestamptz synced_at[33m 742[2mms[22m[39m
+       [33m[2m✓[22m[39m strokes has uuid id/owner_id and a non-null timestamptz synced_at[33m 687[2mms[22m[39m
+       [33m[2m✓[22m[39m pdf_files has uuid id/owner_id and a non-null timestamptz synced_at[33m 662[2mms[22m[39m
+       [33m[2m✓[22m[39m pdf_pages has uuid id/owner_id and a non-null timestamptz synced_at[33m 628[2mms[22m[39m
+       [33m[2m✓[22m[39m boards mirrors the Dexie Board with bigint epoch-ms times[33m 683[2mms[22m[39m
+       [33m[2m✓[22m[39m strokes stores points as jsonb and bbox as four double precision columns[33m 629[2mms[22m[39m
+       [33m[2m✓[22m[39m pdf_files holds metadata only — no blob column[33m 626[2mms[22m[39m
+       [33m[2m✓[22m[39m pdf_pages mirrors the Dexie PdfPage in snake_case[33m 594[2mms[22m[39m
+       [33m[2m✓[22m[39m stores and returns a stroke round-trip (points jsonb, bbox, epoch ms)[33m 605[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects a duplicate client id[33m 601[2mms[22m[39m
+       [33m[2m✓[22m[39m boards defaults owner_id to auth.uid()[33m 647[2mms[22m[39m
+       [33m[2m✓[22m[39m strokes defaults owner_id to auth.uid()[33m 677[2mms[22m[39m
+       [33m[2m✓[22m[39m pdf_files defaults owner_id to auth.uid()[33m 691[2mms[22m[39m
+       [33m[2m✓[22m[39m pdf_pages defaults owner_id to auth.uid()[33m 619[2mms[22m[39m
+       [33m[2m✓[22m[39m boards.owner_id references auth.users[33m 692[2mms[22m[39m
+       [33m[2m✓[22m[39m strokes.owner_id references auth.users[33m 1063[2mms[22m[39m
+       [33m[2m✓[22m[39m pdf_files.owner_id references auth.users[33m 1220[2mms[22m[39m
+       [33m[2m✓[22m[39m pdf_pages.owner_id references auth.users[33m 821[2mms[22m[39m
+       [33m[2m✓[22m[39m boards has an (owner_id, synced_at) index[33m 641[2mms[22m[39m
+       [33m[2m✓[22m[39m strokes has an (owner_id, synced_at) index[33m 628[2mms[22m[39m
+       [33m[2m✓[22m[39m pdf_files has an (owner_id, synced_at) index[33m 617[2mms[22m[39m
+       [33m[2m✓[22m[39m pdf_pages has an (owner_id, synced_at) index[33m 602[2mms[22m[39m
+     [32m✓[39m row level security [2m(25)[22m
+       [33m[2m✓[22m[39m is enabled on boards[33m 602[2mms[22m[39m
+       [33m[2m✓[22m[39m is enabled on strokes[33m 619[2mms[22m[39m
+       [33m[2m✓[22m[39m is enabled on pdf_files[33m 615[2mms[22m[39m
+       [33m[2m✓[22m[39m is enabled on pdf_pages[33m 620[2mms[22m[39m
+       [33m[2m✓[22m[39m lets user A insert and select their own boards and strokes[33m 619[2mms[22m[39m
+       [33m[2m✓[22m[39m hides A’s boards rows from user B[33m 653[2mms[22m[39m
+       [33m[2m✓[22m[39m hides A’s strokes rows from user B[33m 603[2mms[22m[39m
+       [33m[2m✓[22m[39m hides A’s pdf_files rows from user B[33m 623[2mms[22m[39m
+       [33m[2m✓[22m[39m hides A’s pdf_pages rows from user B[33m 648[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects user B inserting boards with owner_id = A[33m 598[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects user B inserting strokes with owner_id = A[33m 609[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects user B inserting pdf_files with owner_id = A[33m 670[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects user B inserting pdf_pages with owner_id = A[33m 628[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects boards inserts with no signed-in user[33m 619[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects strokes inserts with no signed-in user[33m 647[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects pdf_files inserts with no signed-in user[33m 633[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects pdf_pages inserts with no signed-in user[33m 609[2mms[22m[39m
+       [33m[2m✓[22m[39m shows nothing when no user is signed in[33m 655[2mms[22m[39m
+       [33m[2m✓[22m[39m lets A update their own board[33m 607[2mms[22m[39m
+       [33m[2m✓[22m[39m does not let B update A’s board[33m 618[2mms[22m[39m
+       [33m[2m✓[22m[39m does not let A hand their board over to B[33m 626[2mms[22m[39m
+       [33m[2m✓[22m[39m has no delete policy on boards: even the owner cannot delete[33m 613[2mms[22m[39m
+       [33m[2m✓[22m[39m has no delete policy on strokes: even the owner cannot delete[33m 602[2mms[22m[39m
+       [33m[2m✓[22m[39m has no delete policy on pdf_files: even the owner cannot delete[33m 610[2mms[22m[39m
+       [33m[2m✓[22m[39m has no delete policy on pdf_pages: even the owner cannot delete[33m 601[2mms[22m[39m
+     [32m✓[39m stroke immutability [2m(15)[22m
+       [33m[2m✓[22m[39m rejects updating points[33m 592[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects updating color[33m 602[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects updating size[33m 636[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects updating tool[33m 602[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects updating bbox[33m 600[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects updating board_id[33m 638[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects updating created_at[33m 613[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects changing points together with the tombstone[33m 610[2mms[22m[39m
+       [33m[2m✓[22m[39m allows setting deleted_at once, from null to a value[33m 626[2mms[22m[39m
+       [33m[2m✓[22m[39m allows a tombstone at epoch 0[33m 647[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects setting deleted_at a second time[33m 637[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects re-setting deleted_at to the same value[33m 619[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects clearing deleted_at[33m 646[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects an update that leaves deleted_at null[33m 625[2mms[22m[39m
+       [33m[2m✓[22m[39m is enforced even for the database owner[33m 609[2mms[22m[39m
+     [32m✓[39m synced_at [2m(7)[22m
+       [33m[2m✓[22m[39m is set by the server on boards insert, ignoring a client value[33m 631[2mms[22m[39m
+       [33m[2m✓[22m[39m is set by the server on strokes insert, ignoring a client value[33m 620[2mms[22m[39m
+       [33m[2m✓[22m[39m is set by the server on pdf_files insert, ignoring a client value[33m 592[2mms[22m[39m
+       [33m[2m✓[22m[39m is set by the server on pdf_pages insert, ignoring a client value[33m 654[2mms[22m[39m
+       [33m[2m✓[22m[39m advances on insert: a later row has a later cursor[33m 653[2mms[22m[39m
+       [33m[2m✓[22m[39m advances on a stroke tombstone update[33m 655[2mms[22m[39m
+       [33m[2m✓[22m[39m advances on a board update, ignoring a client value[33m 649[2mms[22m[39m
+     [32m✓[39m storage [2m(7)[22m
+       [33m[2m✓[22m[39m creates a private pdfs bucket[33m 694[2mms[22m[39m
+       [33m[2m✓[22m[39m lets A insert and read A/<id>.pdf[33m 630[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects A inserting into B’s folder[33m 630[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects an object outside any user folder[33m 621[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects A’s folder in another bucket[33m 629[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects inserts with no signed-in user[33m 622[2mms[22m[39m
+       [33m[2m✓[22m[39m hides A’s object from B[33m 705[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m9 passed[39m[22m[90m (9)[39m
+[2m      Tests [22m [1m[32m186 passed[39m[22m[90m (186)[39m
+[2m   Start at [22m 08:46:11
+[2m   Duration [22m 51.91s[2m (tests 88%, environment 8%, transform 2%, setup 1%, import 1%)[22m
+
+stderr:
+npm notice
+npm notice New major version of npm available! 10.9.9 -> 12.2.3
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.3
+npm notice To update run: npm install -g npm@12.2.3
+npm notice
+$ npm run build
+exit code: 0
+stdout:
+
+> whiteboard@0.0.0 build
+> tsc -b && vite build
+
+vite v8.3.8 building client environment for production...
+transforming...
+✓ 82 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/registerSW.js                           0.13 kB
+dist/manifest.webmanifest                    0.41 kB
+dist/index.html                              0.81 kB │ gzip:   0.43 kB
+dist/assets/pdf.worker.min-B5Yc7dP4.mjs  1,327.59 kB
+dist/assets/index-qvU2XdCB.css               1.81 kB │ gzip:   0.75 kB
+dist/assets/pdf.worker.min-B7U8ptvh.js       0.06 kB │ gzip:   0.08 kB
+dist/assets/pdf-rELvHkft.js                500.13 kB │ gzip: 152.68 kB
+dist/assets/index-DERARl30.js              565.24 kB │ gzip: 166.41 kB
+
+✓ built in 180ms
+
+PWA v2.0.0
+mode      generateSW
+precache  22 entries (2356.76 KiB)
+files generated
+  dist/sw.js
+  dist/workbox-9c191d2f.js
+stderr:
+[plugin builtin:vite-reporter] 
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+npm notice
+npm notice New major version of npm available! 10.9.9 -> 12.2.3
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.3
+npm notice To update run: npm install -g npm@12.2.3
+npm notice
+$ CI=1 npm run e2e
+exit code: 0
+stdout:
+
+> whiteboard@0.0.0 e2e
+> playwright test
+
+
+
+Running 54 tests using 5 workers
+
+[1/54] [chromium] › e2e/auth.spec.ts:99:1 › sign in with an email code, stay signed in after reload, then sign out
+[2/54] [chromium] › e2e/boards.spec.ts:85:1 › strokes on one board do not appear on another
+[3/54] [chromium] › e2e/boards.spec.ts:47:1 › create a board, draw two strokes, reload: same strokes
+[4/54] [chromium] › e2e/boards.spec.ts:63:1 › rename and delete a board; deletion survives reload
+[5/54] [chromium] › e2e/auth.spec.ts:130:1 › a wrong code shows a Traditional Chinese error and keeps the user signed out
+[6/54] [chromium] › e2e/canvas.spec.ts:155:1 › starts with no strokes and a valid camera
+[7/54] [chromium] › e2e/canvas.spec.ts:164:1 › mounts two stacked canvases in board-root sized by devicePixelRatio with touch-action none
+[8/54] [chromium] › e2e/canvas.spec.ts:198:1 › a pen stroke adds exactly one stroke with the dispatched pressures preserved
+[9/54] [chromium] › e2e/canvas.spec.ts:236:1 › two pen strokes add two strokes with distinct ids
+[10/54] [chromium] › e2e/canvas.spec.ts:251:1 › a mouse stroke draws with pressure 0.5
+[11/54] [chromium] › e2e/canvas.spec.ts:264:1 › a mouse stroke uses pressure 0.5 even when the event reports another pressure
+[12/54] [chromium] › e2e/canvas.spec.ts:276:1 › a one-finger touch drag pans the camera and adds no stroke
+[13/54] [chromium] › e2e/canvas.spec.ts:288:1 › a touch tap adds no stroke
+[14/54] [chromium] › e2e/canvas.spec.ts:298:1 › two touch pointers moving apart increase camera.zoom and add no stroke
+[15/54] [chromium] › e2e/canvas.spec.ts:320:1 › pinch zoom is anchored at the pinch midpoint
+[16/54] [chromium] › e2e/canvas.spec.ts:350:1 › a stroke drawn after panning is stored in world coordinates
+[17/54] [chromium] › e2e/canvas.spec.ts:383:1 › touch is ignored while a pen stroke is in progress
+[18/54] [chromium] › e2e/canvas.spec.ts:411:1 › the wheel pans without zooming or drawing
+[19/54] [chromium] › e2e/canvas.spec.ts:422:1 › ctrl + wheel zooms in and out, clamped to 0.1–8
+[20/54] [chromium] › e2e/canvas.spec.ts:440:1 › ctrl + wheel zoom is anchored at the cursor
+[21/54] [chromium] › e2e/pdf.spec.ts:54:1 › the import input only accepts PDFs
+[22/54] [chromium] › e2e/pdf.spec.ts:58:1 › importing the fixture adds A4 and Letter pages, stacked, both rendered
+[23/54] [chromium] › e2e/pdf.spec.ts:72:1 › a pen stroke over page 1 and the pages survive a reload
+[24/54] [chromium] › e2e/pdf.spec.ts:89:1 › a one-finger touch drag over a page pans the camera and does not draw
+[25/54] [chromium] › e2e/pwa.spec.ts:3:1 › page links manifest and apple-touch-icon
+[26/54] [chromium] › e2e/pwa.spec.ts:9:1 › app shell renders offline after the service worker activates
+[27/54] [chromium] › e2e/smoke.spec.ts:3:1 › app shell loads
+[28/54] [webkit-ipad] › e2e/auth.spec.ts:99:1 › sign in with an email code, stay signed in after reload, then sign out
+[29/54] [webkit-ipad] › e2e/auth.spec.ts:130:1 › a wrong code shows a Traditional Chinese error and keeps the user signed out
+[30/54] [webkit-ipad] › e2e/boards.spec.ts:47:1 › create a board, draw two strokes, reload: same strokes
+[31/54] [webkit-ipad] › e2e/boards.spec.ts:63:1 › rename and delete a board; deletion survives reload
+[32/54] [webkit-ipad] › e2e/boards.spec.ts:85:1 › strokes on one board do not appear on another
+[33/54] [webkit-ipad] › e2e/canvas.spec.ts:164:1 › mounts two stacked canvases in board-root sized by devicePixelRatio with touch-action none
+[34/54] [webkit-ipad] › e2e/canvas.spec.ts:198:1 › a pen stroke adds exactly one stroke with the dispatched pressures preserved
+[35/54] [webkit-ipad] › e2e/canvas.spec.ts:155:1 › starts with no strokes and a valid camera
+[36/54] [webkit-ipad] › e2e/canvas.spec.ts:236:1 › two pen strokes add two strokes with distinct ids
+[37/54] [webkit-ipad] › e2e/canvas.spec.ts:251:1 › a mouse stroke draws with pressure 0.5
+[38/54] [webkit-ipad] › e2e/canvas.spec.ts:264:1 › a mouse stroke uses pressure 0.5 even when the event reports another pressure
+[39/54] [webkit-ipad] › e2e/canvas.spec.ts:276:1 › a one-finger touch drag pans the camera and adds no stroke
+[40/54] [webkit-ipad] › e2e/canvas.spec.ts:288:1 › a touch tap adds no stroke
+[41/54] [webkit-ipad] › e2e/canvas.spec.ts:298:1 › two touch pointers moving apart increase camera.zoom and add no stroke
+[42/54] [webkit-ipad] › e2e/canvas.spec.ts:320:1 › pinch zoom is anchored at the pinch midpoint
+[43/54] [webkit-ipad] › e2e/canvas.spec.ts:350:1 › a stroke drawn after panning is stored in world coordinates
+[44/54] [webkit-ipad] › e2e/canvas.spec.ts:383:1 › touch is ignored while a pen stroke is in progress
+[45/54] [webkit-ipad] › e2e/canvas.spec.ts:411:1 › the wheel pans without zooming or drawing
+[46/54] [webkit-ipad] › e2e/canvas.spec.ts:422:1 › ctrl + wheel zooms in and out, clamped to 0.1–8
+[47/54] [webkit-ipad] › e2e/canvas.spec.ts:440:1 › ctrl + wheel zoom is anchored at the cursor
+[48/54] [webkit-ipad] › e2e/pdf.spec.ts:54:1 › the import input only accepts PDFs
+[49/54] [webkit-ipad] › e2e/pdf.spec.ts:58:1 › importing the fixture adds A4 and Letter pages, stacked, both rendered
+[50/54] [webkit-ipad] › e2e/pdf.spec.ts:72:1 › a pen stroke over page 1 and the pages survive a reload
+[51/54] [webkit-ipad] › e2e/pdf.spec.ts:89:1 › a one-finger touch drag over a page pans the camera and does not draw
+[52/54] [webkit-ipad] › e2e/pwa.spec.ts:3:1 › page links manifest and apple-touch-icon
+[53/54] [webkit-ipad] › e2e/pwa.spec.ts:9:1 › app shell renders offline after the service worker activates
+[54/54] [webkit-ipad] › e2e/smoke.spec.ts:3:1 › app shell loads
+  1 skipped
+  53 passed (25.9s)
+stderr:
+[WebServer] [plugin builtin:vite-reporter] 
+[WebServer] (!) Some chunks are larger than 500 kB after minification. Consider:
+[WebServer] - Using dynamic import() to code-split the application
+[WebServer] - Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+[WebServer] - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+Reports: evidence 54 in verify-1-reports/.
