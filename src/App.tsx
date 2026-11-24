@@ -6,7 +6,8 @@ import { type ActiveTool, Engine } from './engine/engine.ts'
 import type { Stroke } from './engine/stroke.ts'
 import { loadCamera, saveCamera } from './storage/camera.ts'
 import { readPdfPageSizes } from './engine/pdfRenderer.ts'
-import { addStroke, deleteStroke, getBoard, getPdfBlob, importPdf, listPdfPages, listStrokes } from './storage/index.ts'
+import { exportAnnotatedPdf, annotatedFileName } from './engine/pdfExport.ts'
+import { addStroke, listBoardPdfs, deleteStroke, getBoard, getPdfBlob, importPdf, listPdfPages, listStrokes } from './storage/index.ts'
 
 type Route = { name: 'list' } | { name: 'board'; id: string } | { name: 'scratch' }
 
@@ -51,6 +52,43 @@ function BoardView({ boardId }: { boardId: string | null }) {
   }, [])
   const [missing, setMissing] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
+  const [pdfs, setPdfs] = useState<{ id: string; name: string }[]>([])
+  const [menuOpen, setMenuOpen] = useState(false)
+
+  const refreshPdfs = async () => {
+    if (boardId) setPdfs(await listBoardPdfs(boardId))
+  }
+  useEffect(() => {
+    if (!boardId) return
+    let cancelled = false
+    void listBoardPdfs(boardId).then((list) => {
+      if (!cancelled) setPdfs(list)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [boardId])
+
+  const exportPdf = async (pdf: { id: string; name: string }) => {
+    if (!boardId) return
+    try {
+      const blob = await getPdfBlob(pdf.id)
+      if (!blob) return
+      const pages = (await listPdfPages(boardId)).filter((p) => p.pdfId === pdf.id)
+      const out = await exportAnnotatedPdf(new Uint8Array(await blob.arrayBuffer()), pages, await listStrokes(boardId))
+      const url = URL.createObjectURL(new Blob([out as BlobPart], { type: 'application/pdf' }))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = annotatedFileName(pdf.name)
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 10000)
+      setMenuOpen(false)
+    } catch {
+      setImportError('無法匯出這個 PDF。')
+    }
+  }
 
   useEffect(() => {
     const host = hostRef.current
@@ -117,6 +155,7 @@ function BoardView({ boardId }: { boardId: string | null }) {
       const sizes = await readPdfPageSizes(file)
       const pages = await importPdf(boardId, file, sizes, engine.viewportOrigin())
       if (engineRef.current === engine) engine.addPdfPages(pages)
+      await refreshPdfs()
     } catch {
       setImportError('無法匯入這個 PDF。')
     }
@@ -139,6 +178,22 @@ function BoardView({ boardId }: { boardId: string | null }) {
               }}
             />
           </label>
+          {pdfs.length > 0 && (
+            <span className="export-pdf">
+              <button type="button" data-testid="export-pdf-menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((o) => !o)}>
+                匯出 PDF
+              </button>
+              {menuOpen && (
+                <span role="menu">
+                  {pdfs.map((pdf) => (
+                    <button key={pdf.id} type="button" role="menuitem" data-testid="export-pdf-item" onClick={() => void exportPdf(pdf)}>
+                      {pdf.name}
+                    </button>
+                  ))}
+                </span>
+              )}
+            </span>
+          )}
           {importError && <span role="alert">{importError}</span>}
         </div>
       )}
