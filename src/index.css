@@ -51,3 +51,73 @@ body {
   position: relative;
   overflow: hidden;
 }
+
+.auth-controls {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.auth-email {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 40vw;
+}
+
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(0 0 0 / 40%);
+}
+
+.dialog {
+  width: min(360px, calc(100vw - 32px));
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.dialog h2 {
+  margin: 0 0 12px;
+  font-size: 18px;
+}
+
+.dialog form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dialog input {
+  font-size: 16px; /* 16px+ keeps iPad Safari from zooming on focus */
+  padding: 8px;
+}
+
+.dialog-hint {
+  margin: 0;
+  font-size: 13px;
+  opacity: 0.8;
+}
+
+.dialog-error {
+  margin: 0;
+  color: #cf222e;
+  font-size: 14px;
+}
+
+.dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}

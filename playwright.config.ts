@@ -24,5 +24,10 @@ export default defineConfig({
     url: `http://localhost:${PORT}`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
+    // Fake Supabase settings so the sign-in UI is built in; tests mock /auth/v1/*.
+    env: {
+      VITE_SUPABASE_URL: 'http://127.0.0.1:54321',
+      VITE_SUPABASE_ANON_KEY: 'e2e-fake-anon-key',
+    },
   },
 })

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import AuthControls from './auth/AuthControls.tsx'
 import { exposeDebug } from './engine/debug.ts'
 import { Engine } from './engine/engine.ts'
 
@@ -20,6 +21,7 @@ export default function App() {
     <div className="app">
       <header className="app-header">
         <h1>Whiteboard</h1>
+        <AuthControls />
       </header>
       <main ref={boardRef} className="board-root" data-testid="board-root" />
     </div>
