@@ -41,10 +41,17 @@ beforeEach(async () => {
 })
 
 describe('database schema', () => {
-  it('is named whiteboard, version 1, with the four tables', () => {
+  it('is named whiteboard, version 2, with the data tables plus outbox and syncState', () => {
     expect(db.name).toBe('whiteboard')
-    expect(db.verno).toBe(1)
-    expect(db.tables.map((t) => t.name).sort()).toEqual(['boards', 'pdfFiles', 'pdfPages', 'strokes'])
+    expect(db.verno).toBe(2)
+    expect(db.tables.map((t) => t.name).sort()).toEqual([
+      'boards',
+      'outbox',
+      'pdfFiles',
+      'pdfPages',
+      'strokes',
+      'syncState',
+    ])
     expect(db.table('strokes').schema.idxByName.boardId).toBeDefined()
     expect(db.table('pdfPages').schema.idxByName.boardId).toBeDefined()
   })

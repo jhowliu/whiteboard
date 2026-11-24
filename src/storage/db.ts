@@ -26,6 +26,10 @@ export type StoredStroke = {
   deletedAt: number | null
 }
 
+/**
+ * `blob` is missing at runtime for a PDF pulled from another device until a page first needs it
+ * (see `ensurePdfBlob`); readers go through `toBlob` / `getPdfBlob`, which return `undefined` then.
+ */
 export type PdfFile = { id: string; ownerId: string | null; name: string; blob: Blob; createdAt: number }
 
 export type PdfPage = {
@@ -39,18 +43,42 @@ export type PdfPage = {
   height: number
 }
 
+/** Dexie table names that are synced, in the order they are pushed (parents before children). */
+export const SYNC_TABLES = ['boards', 'pdfFiles', 'pdfPages', 'strokes'] as const
+export type SyncTable = (typeof SYNC_TABLES)[number]
+
+/** One pending local write: the row `rowId` of `table` still has to be pushed. */
+export type OutboxEntry = { id?: number; table: SyncTable; rowId: string; createdAt: number }
+
+/** Pull position: the exact `synced_at` string the server returned, plus the row id. */
+export type SyncCursor = { syncedAt: string; id: string }
+
+/** `table` is a synced table name (cursor: SyncCursor) or `'account'` (cursor: the bound user id). */
+export type SyncStateRow = { table: string; cursor: SyncCursor | string }
+
 export type WhiteboardDB = Dexie & {
   boards: EntityTable<Board, 'id'>
   strokes: EntityTable<StoredStroke, 'id'>
   pdfFiles: EntityTable<PdfFile, 'id'>
   pdfPages: EntityTable<PdfPage, 'id'>
+  outbox: EntityTable<OutboxEntry, 'id'>
+  syncState: EntityTable<SyncStateRow, 'table'>
 }
 
-export const db = new Dexie('whiteboard') as WhiteboardDB
+export function openDatabase(name: string): WhiteboardDB {
+  const database = new Dexie(name) as WhiteboardDB
+  database.version(1).stores({
+    boards: 'id, updatedAt',
+    strokes: 'id, boardId',
+    pdfFiles: 'id',
+    pdfPages: 'id, boardId',
+  })
+  // Version 2 adds the sync tables; existing rows are untouched.
+  database.version(2).stores({
+    outbox: '++id, createdAt',
+    syncState: 'table',
+  })
+  return database
+}
 
-db.version(1).stores({
-  boards: 'id, updatedAt',
-  strokes: 'id, boardId',
-  pdfFiles: 'id',
-  pdfPages: 'id, boardId',
-})
+export const db = openDatabase('whiteboard')

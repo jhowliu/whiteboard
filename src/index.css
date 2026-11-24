@@ -52,6 +52,18 @@ body {
   overflow: hidden;
 }
 
+.sync-status {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.sync-status + .auth-controls {
+  margin-left: 12px;
+}
+
 .auth-controls {
   margin-left: auto;
   display: flex;
