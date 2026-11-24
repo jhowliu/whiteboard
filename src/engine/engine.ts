@@ -3,8 +3,18 @@ import { applyCamera, PAPER_COLOR, strokePath } from './render.ts'
 import { type BBox, bboxIntersects, computeBBox, DEFAULT_PEN, type Stroke, type StrokePoint } from './stroke.ts'
 
 export type EngineSnapshot = {
+  boardId: string | null
   camera: Camera
   strokes: { id: string; tool: Stroke['tool']; pointCount: number; bbox: BBox; points: StrokePoint[] }[]
+}
+
+export type EngineOptions = {
+  boardId?: string | null
+  strokes?: Stroke[]
+  camera?: Camera
+  /** Called when a stroke is committed (pointerup). */
+  onStrokeCommit?: (stroke: Stroke) => void
+  onCameraChange?: (camera: Camera) => void
 }
 
 type Draft = { pointerId: number; points: StrokePoint[]; simulatePressure: boolean }
@@ -36,6 +46,7 @@ export class Engine {
   private readonly live = makeCanvas()
   private camera: Camera = { x: 0, y: 0, zoom: 1 }
   private strokes: Stroke[] = []
+  private readonly options: EngineOptions
   private readonly paths = new Map<string, Path2D>()
   private draft: Draft | null = null
   private readonly touches = new Map<number, Point>()
@@ -47,8 +58,11 @@ export class Engine {
   private frame = 0
   private resizeObserver: ResizeObserver | null = null
 
-  constructor(host: HTMLElement) {
+  constructor(host: HTMLElement, options: EngineOptions = {}) {
     this.host = host
+    this.options = options
+    if (options.camera) this.camera = { ...options.camera }
+    if (options.strokes) this.strokes = [...options.strokes]
     this.committed.dataset.layer = 'committed'
     this.live.dataset.layer = 'live'
     this.committed.style.background = PAPER_COLOR
@@ -81,6 +95,7 @@ export class Engine {
 
   snapshot(): EngineSnapshot {
     return {
+      boardId: this.options.boardId ?? null,
       camera: { ...this.camera },
       strokes: this.strokes.map((s) => ({
         id: s.id,
@@ -214,12 +229,14 @@ export class Engine {
       createdAt: Date.now(),
     }
     this.strokes.push(stroke)
+    this.options.onStrokeCommit?.(stroke)
     this.committedDirty = true
     this.requestLive()
   }
 
   private setCamera(camera: Camera): void {
     this.camera = camera
+    this.options.onCameraChange?.(camera)
     this.committedDirty = true
     this.liveDirty = true
     this.schedule()
