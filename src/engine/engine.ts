@@ -1,4 +1,6 @@
 import { type Camera, type Point, panBy, screenToWorld, zoomAt } from './camera.ts'
+import { PdfRenderer } from './pdfRenderer.ts'
+import { quantizeRenderScale } from './pdfLayout.ts'
 import { strokesHitByEraser } from './eraser.ts'
 import { createHistory, type HistoryOps } from './history.ts'
 import { applyCamera, HIGHLIGHTER_ALPHA, PAPER_COLOR, strokePath } from './render.ts'
@@ -8,9 +10,20 @@ export type ActiveTool = Tool | 'eraser'
 
 export type ToolState = { tool: ActiveTool; color: string; size: number }
 
+export type EnginePdfPage = {
+  id: string
+  pdfId: string
+  pageIndex: number
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 export type EngineSnapshot = {
   boardId: string | null
   camera: Camera
+  pdfPages: (EnginePdfPage & { rendered: boolean })[]
   tool: ActiveTool
   strokes: {
     id: string
@@ -29,6 +42,8 @@ const ERASER_RADIUS_PX = 10
 export type EngineOptions = {
   boardId?: string | null
   strokes?: Stroke[]
+  pdfPages?: EnginePdfPage[]
+  loadPdfBlob?: (pdfId: string) => Promise<Blob | undefined>
   camera?: Camera
   /** Called when a stroke is committed (pointerup). */
   onStrokeCommit?: (stroke: Stroke) => void
@@ -72,6 +87,10 @@ function makeCanvas(): HTMLCanvasElement {
 /** Framework-free infinite canvas: owns two stacked canvases inside `host`. */
 export class Engine {
   private readonly host: HTMLElement
+  private readonly pdfLayer = makeCanvas()
+  private pdfPages: EnginePdfPage[] = []
+  private pdfRenderer: PdfRenderer | null = null
+  private pdfDirty = true
   private readonly committed = makeCanvas()
   private readonly live = makeCanvas()
   private camera: Camera = { x: 0, y: 0, zoom: 1 }
@@ -97,8 +116,11 @@ export class Engine {
     if (options.strokes) this.strokes = [...options.strokes]
     this.committed.dataset.layer = 'committed'
     this.live.dataset.layer = 'live'
-    this.committed.style.background = PAPER_COLOR
-    host.append(this.committed, this.live)
+    this.pdfLayer.dataset.layer = 'pdf'
+    this.pdfLayer.style.pointerEvents = 'none'
+    this.pdfLayer.style.background = PAPER_COLOR
+    if (options.pdfPages) this.pdfPages = [...options.pdfPages]
+    host.append(this.pdfLayer, this.committed, this.live)
 
     this.live.addEventListener('pointerdown', this.onPointerDown)
     this.live.addEventListener('pointermove', this.onPointerMove)
@@ -121,6 +143,8 @@ export class Engine {
     cancelAnimationFrame(this.frame)
     this.resizeObserver?.disconnect()
     window.removeEventListener('resize', this.resize)
+    this.pdfRenderer?.destroy()
+    this.pdfLayer.remove()
     this.committed.remove()
     this.live.remove()
   }
@@ -129,6 +153,7 @@ export class Engine {
     return {
       boardId: this.options.boardId ?? null,
       camera: { ...this.camera },
+      pdfPages: this.pdfPages.map((p) => ({ ...p, rendered: this.pdfRenderer?.hasBitmap(p) ?? false })),
       tool: this.toolState.tool,
       strokes: this.strokes.map((s) => ({
         id: s.id,
@@ -192,6 +217,17 @@ export class Engine {
   private eraseAt(draft: Draft, x: number, y: number): void {
     const ids = strokesHitByEraser(this.strokes, { x, y }, ERASER_RADIUS_PX / this.camera.zoom)
     if (ids.length > 0) draft.erased.push(...this.removeStrokes(ids))
+  }
+
+  /** World point at the viewport's top-left. */
+  viewportOrigin(): Point {
+    return { x: this.camera.x, y: this.camera.y }
+  }
+
+  addPdfPages(pages: EnginePdfPage[]): void {
+    this.pdfPages.push(...pages)
+    this.pdfDirty = true
+    this.schedule()
   }
 
   // ---- input ---------------------------------------------------------------
@@ -354,6 +390,7 @@ export class Engine {
     this.options.onCameraChange?.(camera)
     this.committedDirty = true
     this.liveDirty = true
+    this.pdfDirty = true
     this.schedule()
   }
 
@@ -366,12 +403,13 @@ export class Engine {
     this.cssWidth = rect.width
     this.cssHeight = rect.height
     this.dpr = dpr
-    for (const canvas of [this.committed, this.live]) {
+    for (const canvas of [this.pdfLayer, this.committed, this.live]) {
       canvas.width = Math.round(rect.width * dpr)
       canvas.height = Math.round(rect.height * dpr)
     }
     this.committedDirty = true
     this.liveDirty = true
+    this.pdfDirty = true
     this.render()
   }
 
@@ -390,6 +428,10 @@ export class Engine {
 
   private render(): void {
     if (this.committed.width === 0 || this.committed.height === 0) return
+    if (this.pdfDirty) {
+      this.pdfDirty = false
+      this.renderPdf()
+    }
     if (this.committedDirty) {
       this.committedDirty = false
       this.renderCommitted()
@@ -406,12 +448,49 @@ export class Engine {
     return { minX: tl.x, minY: tl.y, maxX: br.x, maxY: br.y }
   }
 
+  private renderPdf(): void {
+    const ctx = this.pdfLayer.getContext('2d')
+    if (!ctx) return
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.fillStyle = PAPER_COLOR
+    ctx.fillRect(0, 0, this.pdfLayer.width, this.pdfLayer.height)
+    if (this.pdfPages.length === 0) return
+    this.pdfRenderer ??= new PdfRenderer(
+      async (id) => this.options.loadPdfBlob?.(id),
+      () => {
+        this.pdfDirty = true
+        this.schedule()
+      },
+    )
+    applyCamera(ctx, this.camera, this.dpr)
+    const v = this.viewport()
+    // Prefetch margin: one viewport height above and below so neighbouring pages are ready before they scroll in.
+    const pad = v.maxY - v.minY
+    const view = { ...v, minY: v.minY - pad, maxY: v.maxY + pad }
+    const scale = quantizeRenderScale(this.camera.zoom, this.dpr)
+    for (const page of this.pdfPages) {
+      const box = { minX: page.x, minY: page.y, maxX: page.x + page.width, maxY: page.y + page.height }
+      if (!bboxIntersects(box, view)) continue
+      const bitmap = this.pdfRenderer.get(page, scale)
+      if (bitmap) {
+        ctx.drawImage(bitmap, page.x, page.y, page.width, page.height)
+        continue
+      }
+      ctx.fillStyle = '#e5e7eb'
+      ctx.fillRect(page.x, page.y, page.width, page.height)
+      ctx.fillStyle = '#6b7280'
+      ctx.font = `${Math.round(Math.min(page.width, page.height) / 6)}px sans-serif`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(String(page.pageIndex + 1), page.x + page.width / 2, page.y + page.height / 2)
+    }
+  }
+
   private renderCommitted(): void {
     const ctx = this.committed.getContext('2d')
     if (!ctx) return
     ctx.setTransform(1, 0, 0, 1, 0, 0)
-    ctx.fillStyle = PAPER_COLOR
-    ctx.fillRect(0, 0, this.committed.width, this.committed.height)
+    ctx.clearRect(0, 0, this.committed.width, this.committed.height)
     applyCamera(ctx, this.camera, this.dpr)
     const view = this.viewport()
     const ordered = [
