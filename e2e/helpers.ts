@@ -6,6 +6,7 @@ import type { Page } from '@playwright/test'
 export type Point3 = [number, number, number]
 export type Snapshot = {
   boardId?: string
+  sync: { status: 'synced' | 'syncing' | 'offline' | 'failed'; pending: number }
   camera: { x: number; y: number; zoom: number }
   pdfPages: { id: string; pdfId: string; pageIndex: number; x: number; y: number; width: number; height: number; rendered: boolean }[]
   strokes: {

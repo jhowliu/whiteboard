@@ -8,7 +8,9 @@ import { loadFingerDraw, saveFingerDraw } from './storage/fingerDraw.ts'
 import { loadCamera, saveCamera } from './storage/camera.ts'
 import { readPdfPageSizes } from './engine/pdfRenderer.ts'
 import { exportAnnotatedPdf, annotatedFileName } from './engine/pdfExport.ts'
-import { addStroke, listBoardPdfs, deleteStroke, getBoard, getPdfBlob, importPdf, listPdfPages, listStrokes } from './storage/index.ts'
+import { addStroke, listBoardPdfs, deleteStroke, getBoard, importPdf, listPdfPages, listStrokes } from './storage/index.ts'
+import { loadPdfBlob } from './sync/runtime.ts'
+import SyncStatus from './sync/SyncStatus.tsx'
 
 type Route = { name: 'list' } | { name: 'board'; id: string } | { name: 'scratch' }
 
@@ -83,7 +85,7 @@ function BoardView({ boardId }: { boardId: string | null }) {
   const exportPdf = async (pdf: { id: string; name: string }) => {
     if (!boardId) return
     try {
-      const blob = await getPdfBlob(pdf.id)
+      const blob = await loadPdfBlob(pdf.id)
       if (!blob) return
       const pages = (await listPdfPages(boardId)).filter((p) => p.pdfId === pdf.id)
       const out = await exportAnnotatedPdf(new Uint8Array(await blob.arrayBuffer()), pages, await listStrokes(boardId))
@@ -130,7 +132,7 @@ function BoardView({ boardId }: { boardId: string | null }) {
         boardId,
         strokes,
         pdfPages,
-        loadPdfBlob: getPdfBlob,
+        loadPdfBlob,
         camera: boardId ? loadCamera(boardId) : undefined,
         onStrokeCommit: boardId ? (stroke) => void addStroke(boardId, stroke) : undefined,
         onStrokesDelete: boardId ? (ids) => ids.forEach((id) => void deleteStroke(id)) : undefined,
@@ -284,6 +286,7 @@ export default function App() {
             Whiteboard
           </a>
         </h1>
+        <SyncStatus />
         <AuthControls />
       </header>
       {route.name === 'list' ? (
