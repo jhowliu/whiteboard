@@ -11,14 +11,23 @@ export default defineConfig({
   use: {
     baseURL: `http://localhost:${PORT}`,
     trace: 'retain-on-failure',
-    // agent-cage publishes these to the PR as evidence (reports.evidence).
-    screenshot: 'on',
+    screenshot: 'only-on-failure',
   },
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'chromium', testIgnore: '**/journeys/**', use: { ...devices['Desktop Chrome'] } },
     // Closest automated stand-in for iPad Safari + Apple Pencil.
     // Service workers are blocked: they bypass page.route() mocks in WebKit, and the offline test is chromium-only.
-    { name: 'webkit-ipad', use: { ...devices['iPad Pro 11'], serviceWorkers: 'block' } },
+    {
+      name: 'webkit-ipad',
+      testIgnore: '**/journeys/**',
+      use: { ...devices['iPad Pro 11'], serviceWorkers: 'block' },
+    },
+    // Paced walkthroughs recorded as video; scripts/journey-gif.mjs turns them into GIF evidence for the PR.
+    {
+      name: 'journey',
+      testMatch: '**/journeys/**/*.journey.ts',
+      use: { ...devices['iPad Pro 11'], serviceWorkers: 'block', video: 'on', screenshot: 'off' },
+    },
   ],
   webServer: {
     command: `npm run build && npm run preview -- --port ${PORT} --strictPort`,

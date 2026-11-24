@@ -10,7 +10,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "e2e": "playwright test",
+    "e2e": "playwright test && node scripts/journey-gif.mjs",
     "preview": "vite preview",
     "icons": "pwa-assets-generator"
   },
