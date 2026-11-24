@@ -27,7 +27,7 @@ guards:
     test_files:
       - "**/*.{test,spec}.{js,jsx,ts,tsx,mjs,cjs,mts,cts}"
     support_files: []
-    run: npx vitest run {file}
+    run: node scripts/test-file.mjs {file}
 execution: docker
 actions:
   enabled: false
