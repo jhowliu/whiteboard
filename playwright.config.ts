@@ -17,7 +17,8 @@ export default defineConfig({
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
     // Closest automated stand-in for iPad Safari + Apple Pencil.
-    { name: 'webkit-ipad', use: { ...devices['iPad Pro 11'] } },
+    // Service workers are blocked: they bypass page.route() mocks in WebKit, and the offline test is chromium-only.
+    { name: 'webkit-ipad', use: { ...devices['iPad Pro 11'], serviceWorkers: 'block' } },
   ],
   webServer: {
     command: `npm run build && npm run preview -- --port ${PORT} --strictPort`,
