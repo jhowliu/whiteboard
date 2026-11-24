@@ -1,8 +1,14 @@
 import { type Camera, type Point, panBy, screenToWorld, zoomAt } from './camera.ts'
 import { PdfRenderer } from './pdfRenderer.ts'
 import { quantizeRenderScale } from './pdfLayout.ts'
-import { applyCamera, PAPER_COLOR, strokePath } from './render.ts'
-import { type BBox, bboxIntersects, computeBBox, DEFAULT_PEN, type Stroke, type StrokePoint } from './stroke.ts'
+import { strokesHitByEraser } from './eraser.ts'
+import { createHistory, type HistoryOps } from './history.ts'
+import { applyCamera, HIGHLIGHTER_ALPHA, PAPER_COLOR, strokePath } from './render.ts'
+import { type BBox, bboxIntersects, computeBBox, DEFAULT_PEN, type Stroke, type StrokePoint, type Tool } from './stroke.ts'
+
+export type ActiveTool = Tool | 'eraser'
+
+export type ToolState = { tool: ActiveTool; color: string; size: number }
 
 export type EnginePdfPage = {
   id: string
@@ -18,8 +24,20 @@ export type EngineSnapshot = {
   boardId: string | null
   camera: Camera
   pdfPages: (EnginePdfPage & { rendered: boolean })[]
-  strokes: { id: string; tool: Stroke['tool']; pointCount: number; bbox: BBox; points: StrokePoint[] }[]
+  tool: ActiveTool
+  strokes: {
+    id: string
+    tool: Stroke['tool']
+    color: string
+    size: number
+    pointCount: number
+    bbox: BBox
+    points: StrokePoint[]
+  }[]
 }
+
+/** Eraser radius in CSS px on screen. */
+const ERASER_RADIUS_PX = 10
 
 export type EngineOptions = {
   boardId?: string | null
@@ -30,23 +48,21 @@ export type EngineOptions = {
   /** Called when a stroke is committed (pointerup). */
   onStrokeCommit?: (stroke: Stroke) => void
   onCameraChange?: (camera: Camera) => void
-  /** Called when the eraser tombstones a stroke. */
-  onStrokeErase?: (id: string) => void
+  /** Called with the ids of strokes that were tombstoned (erase, undo of an add, redo of an erase). */
+  onStrokesDelete?: (ids: string[]) => void
+  /** Called when undo/redo availability may have changed. */
+  onHistoryChange?: (state: { canUndo: boolean; canRedo: boolean }) => void
 }
 
-export type EngineTool = 'pen' | 'eraser'
-
-const ERASER_RADIUS_PX = 12
-
-function distToSegment(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
-  const dx = bx - ax
-  const dy = by - ay
-  const len2 = dx * dx + dy * dy
-  const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len2))
-  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy))
+type Draft = {
+  pointerId: number
+  points: StrokePoint[]
+  simulatePressure: boolean
+  tool: ActiveTool
+  color: string
+  size: number
+  erased: Stroke[]
 }
-
-type Draft = { pointerId: number; points: StrokePoint[]; simulatePressure: boolean; erase: boolean }
 
 const MOUSE_PRESSURE = 0.5
 const WHEEL_ZOOM_SPEED = 0.01
@@ -82,7 +98,8 @@ export class Engine {
   private readonly options: EngineOptions
   private readonly paths = new Map<string, Path2D>()
   private draft: Draft | null = null
-  private tool: EngineTool = 'pen'
+  private toolState: ToolState = { tool: 'pen', color: DEFAULT_PEN.color, size: DEFAULT_PEN.size }
+  private readonly history = createHistory()
   private readonly touches = new Map<number, Point>()
   private cssWidth = 0
   private cssHeight = 0
@@ -137,9 +154,12 @@ export class Engine {
       boardId: this.options.boardId ?? null,
       camera: { ...this.camera },
       pdfPages: this.pdfPages.map((p) => ({ ...p, rendered: this.pdfRenderer?.hasBitmap(p) ?? false })),
+      tool: this.toolState.tool,
       strokes: this.strokes.map((s) => ({
         id: s.id,
         tool: s.tool,
+        color: s.color,
+        size: s.size,
         pointCount: s.points.length,
         bbox: { ...s.bbox },
         points: s.points.map((p) => [p[0], p[1], p[2]] as StrokePoint),
@@ -147,37 +167,61 @@ export class Engine {
     }
   }
 
+  // ---- tools & history -----------------------------------------------------
+
+  setToolState(next: Partial<ToolState>): void {
+    this.toolState = { ...this.toolState, ...next }
+  }
+
+  getToolState(): ToolState {
+    return { ...this.toolState }
+  }
+
+  undo(): void {
+    this.applyOps(this.history.undo())
+  }
+
+  redo(): void {
+    this.applyOps(this.history.redo())
+  }
+
+  private applyOps(ops: HistoryOps | null): void {
+    if (ops) {
+      if (ops.tombstone.length > 0) this.removeStrokes(ops.tombstone)
+      for (const s of ops.add) {
+        this.strokes.push(s)
+        this.options.onStrokeCommit?.(s)
+      }
+      this.committedDirty = true
+      this.schedule()
+    }
+    this.notifyHistory()
+  }
+
+  private removeStrokes(ids: string[]): Stroke[] {
+    const set = new Set(ids)
+    const removed = this.strokes.filter((s) => set.has(s.id))
+    if (removed.length === 0) return removed
+    this.strokes = this.strokes.filter((s) => !set.has(s.id))
+    for (const id of set) this.paths.delete(id)
+    this.options.onStrokesDelete?.(removed.map((s) => s.id))
+    this.committedDirty = true
+    this.schedule()
+    return removed
+  }
+
+  private notifyHistory(): void {
+    this.options.onHistoryChange?.({ canUndo: this.history.canUndo, canRedo: this.history.canRedo })
+  }
+
+  private eraseAt(draft: Draft, x: number, y: number): void {
+    const ids = strokesHitByEraser(this.strokes, { x, y }, ERASER_RADIUS_PX / this.camera.zoom)
+    if (ids.length > 0) draft.erased.push(...this.removeStrokes(ids))
+  }
+
   /** World point at the viewport's top-left. */
   viewportOrigin(): Point {
     return { x: this.camera.x, y: this.camera.y }
-  }
-
-  setTool(tool: EngineTool): void {
-    this.tool = tool
-  }
-
-  /** Tombstones every stroke passing within the eraser radius of a world point. PDF pages are locked and never erased. */
-  private eraseAt(x: number, y: number): void {
-    const r = ERASER_RADIUS_PX / this.camera.zoom
-    const hit = this.strokes.filter((s) => {
-      const reach = r + s.size / 2
-      if (x < s.bbox.minX - reach || x > s.bbox.maxX + reach || y < s.bbox.minY - reach || y > s.bbox.maxY + reach) return false
-      const pts = s.points
-      if (pts.length === 1) return Math.hypot(x - pts[0][0], y - pts[0][1]) <= reach
-      for (let i = 1; i < pts.length; i++) {
-        if (distToSegment(x, y, pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1]) <= reach) return true
-      }
-      return false
-    })
-    if (hit.length === 0) return
-    const ids = new Set(hit.map((s) => s.id))
-    this.strokes = this.strokes.filter((s) => !ids.has(s.id))
-    for (const id of ids) {
-      this.paths.delete(id)
-      this.options.onStrokeErase?.(id)
-    }
-    this.committedDirty = true
-    this.schedule()
   }
 
   addPdfPages(pages: EnginePdfPage[]): void {
@@ -222,10 +266,18 @@ export class Engine {
     this.touches.clear() // a resting palm must not keep panning once the pen lands
     const simulatePressure = e.pointerType === 'mouse'
     const rect = this.live.getBoundingClientRect()
-    const erase = this.tool === 'eraser'
-    const first = this.samplePoint(e, rect, simulatePressure)
-    this.draft = { pointerId: e.pointerId, points: erase ? [] : [first], simulatePressure, erase }
-    if (erase) this.eraseAt(first[0], first[1])
+    const { tool, color, size } = this.toolState
+    const draft: Draft = {
+      pointerId: e.pointerId,
+      points: [this.samplePoint(e, rect, simulatePressure)],
+      simulatePressure,
+      tool,
+      color,
+      size,
+      erased: [],
+    }
+    this.draft = draft
+    if (tool === 'eraser') this.eraseAt(draft, draft.points[0]![0], draft.points[0]![1])
     this.capture(e)
     this.requestLive()
   }
@@ -238,8 +290,8 @@ export class Engine {
       const samples = coalesced.length > 0 ? coalesced : [e]
       for (const s of samples) {
         const p = this.samplePoint(s, rect, this.draft.simulatePressure)
-        if (this.draft.erase) this.eraseAt(p[0], p[1])
-        else this.draft.points.push(p)
+        this.draft.points.push(p)
+        if (this.draft.tool === 'eraser') this.eraseAt(this.draft, p[0], p[1])
       }
       this.requestLive()
       return
@@ -281,6 +333,11 @@ export class Engine {
 
   private onPointerCancel = (e: PointerEvent) => {
     if (this.draft && e.pointerId === this.draft.pointerId && e.pointerType !== 'touch') {
+      if (this.draft.tool === 'eraser') {
+        // Strokes were already tombstoned while moving; keep that undoable.
+        this.commitDraft()
+        return
+      }
       this.draft = null
       this.requestLive()
       return
@@ -304,19 +361,26 @@ export class Engine {
     const draft = this.draft
     if (!draft) return
     this.draft = null
-    if (draft.erase) return
+    if (draft.tool === 'eraser') {
+      this.history.recordErase(draft.erased)
+      this.notifyHistory()
+      this.requestLive()
+      return
+    }
     const stroke: Stroke = {
       id: crypto.randomUUID(),
-      tool: 'pen',
-      color: DEFAULT_PEN.color,
-      size: DEFAULT_PEN.size,
+      tool: draft.tool,
+      color: draft.color,
+      size: draft.size,
       points: draft.points,
       bbox: computeBBox(draft.points),
       simulatePressure: draft.simulatePressure,
       createdAt: Date.now(),
     }
     this.strokes.push(stroke)
+    this.history.recordAdd(stroke)
     this.options.onStrokeCommit?.(stroke)
+    this.notifyHistory()
     this.committedDirty = true
     this.requestLive()
   }
@@ -429,7 +493,11 @@ export class Engine {
     ctx.clearRect(0, 0, this.committed.width, this.committed.height)
     applyCamera(ctx, this.camera, this.dpr)
     const view = this.viewport()
-    for (const stroke of this.strokes) {
+    const ordered = [
+      ...this.strokes.filter((s) => s.tool === 'highlighter'),
+      ...this.strokes.filter((s) => s.tool !== 'highlighter'),
+    ]
+    for (const stroke of ordered) {
       const pad = stroke.size
       const box = {
         minX: stroke.bbox.minX - pad,
@@ -444,8 +512,10 @@ export class Engine {
         this.paths.set(stroke.id, path)
       }
       ctx.fillStyle = stroke.color
+      ctx.globalAlpha = stroke.tool === 'highlighter' ? HIGHLIGHTER_ALPHA : 1
       ctx.fill(path)
     }
+    ctx.globalAlpha = 1
   }
 
   private renderLive(): void {
@@ -453,14 +523,17 @@ export class Engine {
     if (!ctx) return
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.clearRect(0, 0, this.live.width, this.live.height)
-    if (!this.draft || this.draft.erase) return
+    const draft = this.draft
+    if (!draft || draft.tool === 'eraser') return
     applyCamera(ctx, this.camera, this.dpr)
-    ctx.fillStyle = DEFAULT_PEN.color
+    ctx.fillStyle = draft.color
+    ctx.globalAlpha = draft.tool === 'highlighter' ? HIGHLIGHTER_ALPHA : 1
     ctx.fill(
       strokePath(
-        { points: this.draft.points, size: DEFAULT_PEN.size, color: DEFAULT_PEN.color, simulatePressure: this.draft.simulatePressure },
+        { points: draft.points, size: draft.size, color: draft.color, simulatePressure: draft.simulatePressure, tool: draft.tool },
         false,
       ),
     )
+    ctx.globalAlpha = 1
   }
 }
