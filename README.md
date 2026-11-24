@@ -1,0 +1,21 @@
+# Evidence for run-20261124140941-2be1b8
+
+https://github.com/jhowliu/whiteboard/issues/29
+
+| Path | Kind | Size (bytes) |
+| --- | --- | ---: |
+| [verify.log](./verify.log) | log | 26789 |
+| [test-results/journeys-board.journey.ts-白板-新增-→-畫兩筆-→-平移縮放-→-重新整理-→-改名-journey/journey.gif](./test-results/journeys-board.journey.ts-%E7%99%BD%E6%9D%BF-%E6%96%B0%E5%A2%9E-%E2%86%92-%E7%95%AB%E5%85%A9%E7%AD%86-%E2%86%92-%E5%B9%B3%E7%A7%BB%E7%B8%AE%E6%94%BE-%E2%86%92-%E9%87%8D%E6%96%B0%E6%95%B4%E7%90%86-%E2%86%92-%E6%94%B9%E5%90%8D-journey/journey.gif) | evidence | 1073066 |
+| [test-results/journeys-board.journey.ts-白板-新增-→-畫兩筆-→-平移縮放-→-重新整理-→-改名-journey/video.webm](./test-results/journeys-board.journey.ts-%E7%99%BD%E6%9D%BF-%E6%96%B0%E5%A2%9E-%E2%86%92-%E7%95%AB%E5%85%A9%E7%AD%86-%E2%86%92-%E5%B9%B3%E7%A7%BB%E7%B8%AE%E6%94%BE-%E2%86%92-%E9%87%8D%E6%96%B0%E6%95%B4%E7%90%86-%E2%86%92-%E6%94%B9%E5%90%8D-journey/video.webm) | evidence | 305975 |
+| [test-results/journeys-finger-draw.journey.ts-手指繪圖-開啟-→-用手指畫-→-雙指縮放-journey/journey.gif](./test-results/journeys-finger-draw.journey.ts-%E6%89%8B%E6%8C%87%E7%B9%AA%E5%9C%96-%E9%96%8B%E5%95%9F-%E2%86%92-%E7%94%A8%E6%89%8B%E6%8C%87%E7%95%AB-%E2%86%92-%E9%9B%99%E6%8C%87%E7%B8%AE%E6%94%BE-journey/journey.gif) | evidence | 494600 |
+| [test-results/journeys-finger-draw.journey.ts-手指繪圖-開啟-→-用手指畫-→-雙指縮放-journey/video.webm](./test-results/journeys-finger-draw.journey.ts-%E6%89%8B%E6%8C%87%E7%B9%AA%E5%9C%96-%E9%96%8B%E5%95%9F-%E2%86%92-%E7%94%A8%E6%89%8B%E6%8C%87%E7%95%AB-%E2%86%92-%E9%9B%99%E6%8C%87%E7%B8%AE%E6%94%BE-journey/video.webm) | evidence | 128703 |
+| [test-results/journeys-pdf.journey.ts-PDF-匯入-→-標註-→-重新整理-→-擦掉-→-平移-journey/journey.gif](./test-results/journeys-pdf.journey.ts-PDF-%E5%8C%AF%E5%85%A5-%E2%86%92-%E6%A8%99%E8%A8%BB-%E2%86%92-%E9%87%8D%E6%96%B0%E6%95%B4%E7%90%86-%E2%86%92-%E6%93%A6%E6%8E%89-%E2%86%92-%E5%B9%B3%E7%A7%BB-journey/journey.gif) | evidence | 845687 |
+| [test-results/journeys-pdf.journey.ts-PDF-匯入-→-標註-→-重新整理-→-擦掉-→-平移-journey/video.webm](./test-results/journeys-pdf.journey.ts-PDF-%E5%8C%AF%E5%85%A5-%E2%86%92-%E6%A8%99%E8%A8%BB-%E2%86%92-%E9%87%8D%E6%96%B0%E6%95%B4%E7%90%86-%E2%86%92-%E6%93%A6%E6%8E%89-%E2%86%92-%E5%B9%B3%E7%A7%BB-journey/video.webm) | evidence | 202088 |
+| [test-results/journeys-sync.journey.ts-同步-未登入先畫-→-驗證碼登入-→-顯示「已同步」-journey/journey.gif](./test-results/journeys-sync.journey.ts-%E5%90%8C%E6%AD%A5-%E6%9C%AA%E7%99%BB%E5%85%A5%E5%85%88%E7%95%AB-%E2%86%92-%E9%A9%97%E8%AD%89%E7%A2%BC%E7%99%BB%E5%85%A5-%E2%86%92-%E9%A1%AF%E7%A4%BA%E3%80%8C%E5%B7%B2%E5%90%8C%E6%AD%A5%E3%80%8D-journey/journey.gif) | evidence | 958820 |
+| [test-results/journeys-sync.journey.ts-同步-未登入先畫-→-驗證碼登入-→-顯示「已同步」-journey/video.webm](./test-results/journeys-sync.journey.ts-%E5%90%8C%E6%AD%A5-%E6%9C%AA%E7%99%BB%E5%85%A5%E5%85%88%E7%95%AB-%E2%86%92-%E9%A9%97%E8%AD%89%E7%A2%BC%E7%99%BB%E5%85%A5-%E2%86%92-%E9%A1%AF%E7%A4%BA%E3%80%8C%E5%B7%B2%E5%90%8C%E6%AD%A5%E3%80%8D-journey/video.webm) | evidence | 230124 |
+
+![test-results/journeys-board.journey.ts-白板-新增-→-畫兩筆-→-平移縮放-→-重新整理-→-改名-journey/journey.gif](./test-results/journeys-board.journey.ts-%E7%99%BD%E6%9D%BF-%E6%96%B0%E5%A2%9E-%E2%86%92-%E7%95%AB%E5%85%A9%E7%AD%86-%E2%86%92-%E5%B9%B3%E7%A7%BB%E7%B8%AE%E6%94%BE-%E2%86%92-%E9%87%8D%E6%96%B0%E6%95%B4%E7%90%86-%E2%86%92-%E6%94%B9%E5%90%8D-journey/journey.gif)
+![test-results/journeys-finger-draw.journey.ts-手指繪圖-開啟-→-用手指畫-→-雙指縮放-journey/journey.gif](./test-results/journeys-finger-draw.journey.ts-%E6%89%8B%E6%8C%87%E7%B9%AA%E5%9C%96-%E9%96%8B%E5%95%9F-%E2%86%92-%E7%94%A8%E6%89%8B%E6%8C%87%E7%95%AB-%E2%86%92-%E9%9B%99%E6%8C%87%E7%B8%AE%E6%94%BE-journey/journey.gif)
+![test-results/journeys-pdf.journey.ts-PDF-匯入-→-標註-→-重新整理-→-擦掉-→-平移-journey/journey.gif](./test-results/journeys-pdf.journey.ts-PDF-%E5%8C%AF%E5%85%A5-%E2%86%92-%E6%A8%99%E8%A8%BB-%E2%86%92-%E9%87%8D%E6%96%B0%E6%95%B4%E7%90%86-%E2%86%92-%E6%93%A6%E6%8E%89-%E2%86%92-%E5%B9%B3%E7%A7%BB-journey/journey.gif)
+![test-results/journeys-sync.journey.ts-同步-未登入先畫-→-驗證碼登入-→-顯示「已同步」-journey/journey.gif](./test-results/journeys-sync.journey.ts-%E5%90%8C%E6%AD%A5-%E6%9C%AA%E7%99%BB%E5%85%A5%E5%85%88%E7%95%AB-%E2%86%92-%E9%A9%97%E8%AD%89%E7%A2%BC%E7%99%BB%E5%85%A5-%E2%86%92-%E9%A1%AF%E7%A4%BA%E3%80%8C%E5%B7%B2%E5%90%8C%E6%AD%A5%E3%80%8D-journey/journey.gif)
+
