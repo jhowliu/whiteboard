@@ -1,6 +1,7 @@
-import { type Board, db, type StoredStroke } from './db.ts'
+import { layoutPdfPages, type PageSize } from '../engine/pdfLayout.ts'
+import { type Board, db, type PdfPage, type StoredStroke } from './db.ts'
 
-export type { Board, StoredStroke } from './db.ts'
+export type { Board, PdfFile, PdfPage, StoredStroke } from './db.ts'
 export { db } from './db.ts'
 
 export const DEFAULT_BOARD_TITLE = '未命名白板'
@@ -80,4 +81,50 @@ export async function deleteStroke(id: string): Promise<void> {
     .equals(id)
     .filter((s) => s.deletedAt === null)
     .modify({ deletedAt: Date.now() })
+}
+
+/** Stores the PDF and one locked page per size, stacked from the viewport origin, in one transaction. */
+export async function importPdf(
+  boardId: string,
+  file: Blob & { name?: string },
+  pageSizes: PageSize[],
+  viewportOrigin: { x: number; y: number },
+): Promise<PdfPage[]> {
+  if (pageSizes.length === 0) throw new Error('PDF has no pages')
+  // Copy into memory: WebKit cannot store file-backed Blobs from <input type=file> in IndexedDB.
+  const blob = new Blob([await file.arrayBuffer()], { type: 'application/pdf' })
+  const pdfId = crypto.randomUUID()
+  const pages: PdfPage[] = layoutPdfPages(pageSizes, viewportOrigin).map((l) => ({
+    id: crypto.randomUUID(),
+    boardId,
+    pdfId,
+    ...l,
+  }))
+  const write = (stored: Blob) =>
+    db.transaction('rw', db.boards, db.pdfFiles, db.pdfPages, async () => {
+      const board = await db.boards.get(boardId)
+      if (!board || board.deletedAt !== null) throw new Error('Board not found')
+      await db.pdfFiles.add({ id: pdfId, ownerId: null, name: file.name ?? 'document.pdf', blob: stored, createdAt: Date.now() })
+      await db.pdfPages.bulkAdd(pages)
+      await db.boards.update(boardId, { updatedAt: Date.now() })
+    })
+  try {
+    await write(blob)
+  } catch (err) {
+    if ((err as Error)?.message === 'Board not found') throw err
+    // Some WebKit builds cannot store Blobs in IndexedDB; keep the bytes as an ArrayBuffer instead.
+    await write((await blob.arrayBuffer()) as unknown as Blob)
+  }
+  return pages
+}
+
+export async function listPdfPages(boardId: string): Promise<PdfPage[]> {
+  const rows = await db.pdfPages.where('boardId').equals(boardId).toArray()
+  return rows.sort((a, b) => a.y - b.y || a.pageIndex - b.pageIndex)
+}
+
+export async function getPdfBlob(pdfId: string): Promise<Blob | undefined> {
+  const stored = (await db.pdfFiles.get(pdfId))?.blob as Blob | ArrayBuffer | undefined
+  if (!stored) return undefined
+  return stored instanceof ArrayBuffer ? new Blob([stored], { type: 'application/pdf' }) : stored
 }
