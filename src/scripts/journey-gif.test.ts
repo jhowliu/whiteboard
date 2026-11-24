@@ -51,21 +51,35 @@ describe('scripts/journey-gif.mjs with ffmpeg', () => {
   beforeEach(() => {
     const log = join(work, 'ffmpeg-args.log')
     // Fake ffmpeg: logs its arguments and creates the file named by the last argument.
-    const fake = `#!/bin/sh\necho "$@" >> "${log}"\nfor last; do :; done\ncase "$last" in -*) ;; *) echo gif > "$last";; esac\n`
+    const fake = `#!/bin/sh\necho "$@" >> "${log}"\nif [ "$1" = "-hide_banner" ] && [ "$2" = "-filters" ]; then echo " T. scale V->V scale"; exit 0; fi\nfor last; do :; done\ncase "$last" in -*) ;; *) echo gif > "$last";; esac\n`
     writeFileSync(join(fakeBin, 'ffmpeg'), fake)
     chmodSync(join(fakeBin, 'ffmpeg'), 0o755)
   })
 
-  it('writes journey.gif next to each video.webm using fps=10, width 480 and a palette', () => {
-    const r = run(`${fakeBin}:/usr/bin:/bin`, true)
+  it('writes journey.gif next to each video.webm using fps=10, width 640 and a palette', () => {
+    const r = run(`${fakeBin}:/usr/bin:/bin`, false)
     expect(r.status).toBe(0)
     expect(existsSync(join(work, 'test-results', 'board-journey-journey', 'journey.gif'))).toBe(true)
     const args = readFileSync(join(work, 'ffmpeg-args.log'), 'utf8')
     expect(args).toContain(video)
     expect(args).toContain('fps=10')
-    expect(args).toContain('480')
+    expect(args).toContain('640')
+    expect(args).not.toContain('drawtext')
     expect(args).toContain('palettegen')
     expect(args).toContain('paletteuse')
+  })
+
+  it('without drawtext and without CI warns about drawtext and still writes a 640 px GIF', () => {
+    const r = run(`${fakeBin}:/usr/bin:/bin`, false)
+    expect(r.status).toBe(0)
+    expect(`${r.stdout}${r.stderr}`).toMatch(/drawtext/)
+    expect(existsSync(join(work, 'test-results', 'board-journey-journey', 'journey.gif'))).toBe(true)
+  })
+
+  it('without drawtext and with CI exits non-zero naming drawtext', () => {
+    const r = run(`${fakeBin}:/usr/bin:/bin`, true)
+    expect(r.status).not.toBe(0)
+    expect(`${r.stdout}${r.stderr}`).toMatch(/drawtext/)
   })
 
   it('exits 0 and does nothing when there are no videos', () => {

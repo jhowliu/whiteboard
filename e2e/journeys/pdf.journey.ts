@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import { center, pacedPenStroke, pause, snapshot, touchDrag } from '../helpers.ts'
 
 // Journey: new board → import PDF → pages render → annotate → reload → erase → pan over the pages.
-test('pdf journey', async ({ page }) => {
+test('PDF:匯入 → 標註 → 重新整理 → 擦掉 → 平移', async ({ page }) => {
   await page.goto('/#/')
   await page.getByTestId('new-board').click()
   await expect(page.getByTestId('board-root')).toBeVisible()

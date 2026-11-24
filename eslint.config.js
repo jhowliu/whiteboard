@@ -20,6 +20,11 @@ export default defineConfig([
     },
   },
   {
+    // Plain ESM script helpers have no type declarations; the test imports them with @ts-ignore.
+    files: ['src/scripts/*.test.ts'],
+    rules: { '@typescript-eslint/ban-ts-comment': 'off' },
+  },
+  {
     files: ['e2e/**/*.ts'],
     rules: { '@typescript-eslint/no-explicit-any': 'off' },
   },

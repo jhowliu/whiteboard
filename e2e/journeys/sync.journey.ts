@@ -3,7 +3,7 @@ import { center, pacedPenStroke, pause, snapshot } from '../helpers.ts'
 import { mockSupabase, signInThroughDialog } from '../mock-supabase.ts'
 
 // Journey: draw while signed out → sign in with an email code → the strokes sync and the header shows 已同步.
-test('sync journey', async ({ page }) => {
+test('同步:未登入先畫 → 驗證碼登入 → 顯示「已同步」', async ({ page }) => {
   await mockSupabase(page)
   await page.goto('/#/')
   await page.getByTestId('new-board').click()

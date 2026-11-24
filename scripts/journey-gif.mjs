@@ -1,7 +1,9 @@
 // Turns each journey video.webm under test-results/ into a journey.gif next to it.
 import { spawnSync } from 'node:child_process'
-import { readdirSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
+import { buildFilter, fontSizeForTitle, titleForVideo } from './journey-gif-lib.mjs'
 
 const ci = !!process.env.CI
 const root = join(process.cwd(), 'test-results')
@@ -33,10 +35,52 @@ if (probe.error || probe.status !== 0) {
   process.exit(0)
 }
 
+// Title bar prerequisites; each missing one is a warning locally and an error in CI.
+const missing = []
+const filters = spawnSync('ffmpeg', ['-hide_banner', '-filters'], { encoding: 'utf8' })
+if (!/\bdrawtext\b/.test(filters.stdout ?? '')) missing.push('ffmpeg drawtext filter')
+
+let fontFile = process.env.JOURNEY_GIF_FONT
+if (!fontFile) {
+  const fc = spawnSync('fc-match', ['-f', '%{file}', 'sans-serif:lang=zh-tw'], { encoding: 'utf8' })
+  fontFile = fc.status === 0 ? fc.stdout.trim() : ''
+}
+if (!fontFile || !existsSync(fontFile)) missing.push('font file (set JOURNEY_GIF_FONT)')
+
+let report
+try {
+  report = JSON.parse(readFileSync(join(root, 'report.json'), 'utf8'))
+} catch {
+  missing.push('test-results/report.json')
+}
+
+function report_(msg) {
+  if (ci) {
+    console.error(`error: ${msg}`)
+    return true
+  }
+  console.warn(`warning: ${msg}`)
+  return false
+}
+
 let failed = false
+if (missing.length > 0 && report_(`journey GIFs have no title bar; missing: ${missing.join(', ')}`)) failed = true
+
+const tmp = mkdtempSync(join(tmpdir(), 'journey-gif-'))
 for (const video of videos) {
   const out = join(dirname(video), 'journey.gif')
-  const filter = 'fps=10,scale=480:-1:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse'
+  let opts
+  if (missing.length === 0) {
+    const title = titleForVideo(report, video)
+    if (title === undefined) {
+      if (report_(`no test title found for ${video}; writing GIF without title bar`)) failed = true
+    } else {
+      const textFile = join(tmp, `title-${videos.indexOf(video)}.txt`)
+      writeFileSync(textFile, title)
+      opts = { fontFile, textFile, fontSize: fontSizeForTitle(title) }
+    }
+  }
+  const filter = buildFilter(opts)
   const r = spawnSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', video, '-filter_complex', filter, out], {
     stdio: 'inherit',
   })
@@ -45,4 +89,5 @@ for (const video of videos) {
     failed = true
   } else console.log(`wrote ${out}`)
 }
+rmSync(tmp, { recursive: true, force: true })
 process.exit(failed ? 1 : 0)

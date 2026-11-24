@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import { center, pacedPenStroke, pause, pinch, snapshot, touchDrag } from '../helpers.ts'
 
 // Journey: board list → new board → draw → pan → pinch-zoom → reload → rename.
-test('board journey', async ({ page }) => {
+test('白板:新增 → 畫兩筆 → 平移縮放 → 重新整理 → 改名', async ({ page }) => {
   await page.goto('/#/')
   await expect(page.getByTestId('board-list')).toBeVisible()
   await pause(page)
