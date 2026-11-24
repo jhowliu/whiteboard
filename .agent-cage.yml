@@ -10,6 +10,7 @@ reports:
   evidence:
     - test-results/**/*.png
     - test-results/**/*.webm
+    - test-results/**/*.gif
 runtime:
   dockerfile: .agent-cage/Dockerfile
 agent:

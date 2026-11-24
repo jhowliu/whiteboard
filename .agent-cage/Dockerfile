@@ -7,4 +7,8 @@ USER root
 RUN npx -y playwright@1.65.1 install --with-deps chromium webkit \
   && chmod -R a+rX /ms-playwright \
   && rm -rf /var/lib/apt/lists/* /root/.npm
+# ffmpeg turns e2e journey videos into GIFs that agent-cage embeds in PRs.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ffmpeg \
+  && rm -rf /var/lib/apt/lists/*
 USER agent
