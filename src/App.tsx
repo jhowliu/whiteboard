@@ -4,6 +4,7 @@ import BoardList from './BoardList.tsx'
 import { exposeDebug } from './engine/debug.ts'
 import { type ActiveTool, Engine } from './engine/engine.ts'
 import type { Stroke } from './engine/stroke.ts'
+import { loadFingerDraw, saveFingerDraw } from './storage/fingerDraw.ts'
 import { loadCamera, saveCamera } from './storage/camera.ts'
 import { readPdfPageSizes } from './engine/pdfRenderer.ts'
 import { exportAnnotatedPdf, annotatedFileName } from './engine/pdfExport.ts'
@@ -26,17 +27,27 @@ const TOOLS: { id: ActiveTool; label: string }[] = [
   { id: 'eraser', label: '橡皮擦' },
 ]
 
+let penSeen = false
+
 function BoardView({ boardId }: { boardId: string | null }) {
   const hostRef = useRef<HTMLElement>(null)
   const engineRef = useRef<Engine | null>(null)
   const [tool, setTool] = useState<ActiveTool>('pen')
   const [color, setColor] = useState(COLORS[0]!)
   const [size, setSize] = useState(SIZES[1]!)
+  const [fingerDraw, setFingerDrawState] = useState(() => loadFingerDraw() ?? true)
   const [history, setHistory] = useState({ canUndo: false, canRedo: false })
 
   useEffect(() => {
     engineRef.current?.setToolState({ tool, color, size })
   }, [tool, color, size])
+
+  const toggleFingerDraw = () => {
+    const next = !fingerDraw
+    setFingerDrawState(next)
+    saveFingerDraw(next)
+    engineRef.current?.setFingerDraw(next)
+  }
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -124,6 +135,16 @@ function BoardView({ boardId }: { boardId: string | null }) {
         onStrokeCommit: boardId ? (stroke) => void addStroke(boardId, stroke) : undefined,
         onStrokesDelete: boardId ? (ids) => ids.forEach((id) => void deleteStroke(id)) : undefined,
         onHistoryChange: setHistory,
+        fingerDraw: loadFingerDraw() ?? true,
+        onPenSeen: () => {
+          // The first pen pointer of the session turns finger drawing off, unless the user already chose.
+          if (penSeen) return
+          penSeen = true
+          if (loadFingerDraw() !== null) return
+          saveFingerDraw(false)
+          setFingerDrawState(false)
+          engine.setFingerDraw(false)
+        },
         onCameraChange: boardId ? (camera) => saveCamera(boardId, camera) : undefined,
       })
       engine.setToolState({ tool, color, size })
@@ -231,6 +252,9 @@ function BoardView({ boardId }: { boardId: string | null }) {
               {SIZE_LABELS[i]}
             </button>
           ))}
+          <button type="button" aria-pressed={fingerDraw} data-testid="finger-draw" onClick={toggleFingerDraw}>
+            手指繪圖
+          </button>
           <button type="button" disabled={!history.canUndo} data-testid="undo" onClick={() => engineRef.current?.undo()}>
             復原
           </button>
