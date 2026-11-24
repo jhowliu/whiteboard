@@ -148,3 +148,46 @@ body {
 .board-title {
   flex: 1;
 }
+
+.toolbar {
+  position: absolute;
+  z-index: 10;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px;
+  max-width: calc(100% - 16px);
+  background: #ffffff;
+  color: #1f2328;
+  border: 1px solid #d0d7de;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgb(0 0 0 / 0.15);
+}
+
+.toolbar button {
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid #d0d7de;
+  border-radius: 8px;
+  background: #f6f8fa;
+  color: inherit;
+  font: inherit;
+  touch-action: manipulation;
+}
+
+.toolbar button[aria-pressed='true'] {
+  outline: 3px solid #0969da;
+  outline-offset: -1px;
+}
+
+.toolbar button:disabled {
+  opacity: 0.4;
+}
+
+.toolbar .swatch {
+  border-radius: 50%;
+}

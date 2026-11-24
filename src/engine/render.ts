@@ -4,13 +4,21 @@ import type { StrokePoint } from './stroke.ts'
 
 export const PAPER_COLOR = '#ffffff'
 
-type DrawableStroke = { points: StrokePoint[]; size: number; color: string; simulatePressure: boolean }
+export const HIGHLIGHTER_ALPHA = 0.35
+
+type DrawableStroke = {
+  points: StrokePoint[]
+  size: number
+  color: string
+  simulatePressure: boolean
+  tool?: 'pen' | 'highlighter'
+}
 
 /** Builds a filled outline path in world coordinates. */
 export function strokePath(stroke: DrawableStroke, last: boolean): Path2D {
   const outline = getStroke(stroke.points, {
     size: stroke.size,
-    thinning: 0.6,
+    thinning: stroke.tool === 'highlighter' ? 0 : 0.6,
     smoothing: 0.5,
     streamline: 0.5,
     simulatePressure: stroke.simulatePressure,
