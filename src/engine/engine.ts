@@ -73,6 +73,10 @@ type Draft = {
 const MOUSE_PRESSURE = 0.5
 const WHEEL_ZOOM_SPEED = 0.01
 const LINE_HEIGHT_PX = 16
+/** Palm rejection: a touch that goes down this soon after any pen event (down, move, hover, up) is ignored. */
+export const PALM_WINDOW_MS = 500
+/** One finger starts panning only after moving this far (CSS px), so a resting palm does not pan. */
+export const PAN_SLOP_PX = 8
 
 function makeCanvas(): HTMLCanvasElement {
   const canvas = document.createElement('canvas')
@@ -87,6 +91,7 @@ function makeCanvas(): HTMLCanvasElement {
     userSelect: 'none',
     webkitUserSelect: 'none',
   })
+  canvas.style.setProperty('-webkit-touch-callout', 'none')
   return canvas
 }
 
@@ -108,6 +113,10 @@ export class Engine {
   private readonly history = createHistory()
   private fingerDraw = true
   private readonly touches = new Map<number, Point>()
+  /** `performance.now()` of the latest pen event, including hover. */
+  private lastPenAt = -Infinity
+  /** Whether the current one-finger gesture has moved past PAN_SLOP_PX. */
+  private panning = false
   private cssWidth = 0
   private cssHeight = 0
   private dpr = 1
@@ -138,6 +147,10 @@ export class Engine {
     this.live.addEventListener('contextmenu', this.preventDefault)
     // iOS Safari still fires gesture events for pinches; the engine handles zoom itself.
     this.live.addEventListener('gesturestart', this.preventDefault)
+    // A palm or finger held still must not start iOS text selection, the loupe or a callout.
+    // Pointer events are dispatched before touch events, so this does not affect drawing.
+    this.live.addEventListener('touchstart', this.preventDefault, { passive: false })
+    this.live.addEventListener('selectstart', this.preventDefault)
 
     if (typeof ResizeObserver !== 'undefined') {
       this.resizeObserver = new ResizeObserver(() => this.resize())
@@ -267,8 +280,12 @@ export class Engine {
 
   private onPointerDown = (e: PointerEvent) => {
     e.preventDefault()
+    if (e.pointerType === 'pen') this.lastPenAt = performance.now()
     if (e.pointerType === 'touch') {
       if (this.draft && !this.draft.finger) return // palm rejection while the pen is down
+      // Palm rejection near the pen: this touch is never tracked, so its moves and lift are ignored too.
+      if (performance.now() - this.lastPenAt < PALM_WINDOW_MS) return
+      this.panning = false
       if (this.draft) this.abortDraft() // a second finger turns a finger stroke into a pan/zoom
       const wasEmpty = this.touches.size === 0
       this.touches.set(e.pointerId, this.toScreen(e))
@@ -305,6 +322,7 @@ export class Engine {
   }
 
   private onPointerMove = (e: PointerEvent) => {
+    if (e.pointerType === 'pen') this.lastPenAt = performance.now() // also while hovering
     if (this.draft && e.pointerId === this.draft.pointerId) {
       e.preventDefault()
       if (this.draft.finger) this.touches.set(e.pointerId, this.toScreen(e))
@@ -325,6 +343,9 @@ export class Engine {
     e.preventDefault()
     const next = this.toScreen(e)
     if (this.touches.size === 1) {
+      // Until the slop is passed, `prev` stays the down point, so the pan then covers the full distance.
+      if (!this.panning && Math.hypot(next.x - prev.x, next.y - prev.y) < PAN_SLOP_PX) return
+      this.panning = true
       this.touches.set(e.pointerId, next)
       this.setCamera(panBy(this.camera, next.x - prev.x, next.y - prev.y))
       return
@@ -346,6 +367,7 @@ export class Engine {
   }
 
   private onPointerUp = (e: PointerEvent) => {
+    if (e.pointerType === 'pen') this.lastPenAt = performance.now()
     if (this.draft && e.pointerId === this.draft.pointerId) {
       e.preventDefault()
       this.touches.delete(e.pointerId)
@@ -353,6 +375,7 @@ export class Engine {
       return
     }
     this.touches.delete(e.pointerId)
+    if (this.touches.size === 0) this.panning = false
   }
 
   private onPointerCancel = (e: PointerEvent) => {

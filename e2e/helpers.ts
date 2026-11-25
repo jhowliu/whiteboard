@@ -190,3 +190,6 @@ export async function wheel(
 }
 
 export const pause = (page: Page, ms = 500) => page.waitForTimeout(ms)
+
+/** Mirrors `PALM_WINDOW_MS` in src/engine/engine.ts: a touch this soon after any pen event is ignored as a palm. */
+export const PALM_WINDOW_MS = 500
