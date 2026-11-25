@@ -157,3 +157,18 @@ describe('strokes', () => {
     expect(await listStrokes(b.id)).toEqual([])
   })
 })
+
+// Issue #33: erasing changes the board's updatedAt, so a cached thumbnail of the board goes stale.
+describe('erasing a stroke touches its board', () => {
+  it('bumps the board updatedAt and queues the board in the outbox', async () => {
+    const b = await createBoard()
+    await addStroke(b.id, stroke('s1'))
+    const before = (await getBoard(b.id))!.updatedAt
+    await db.outbox.clear()
+    await sleep(5)
+    await deleteStroke('s1')
+    expect((await getBoard(b.id))!.updatedAt).toBeGreaterThan(before)
+    const boardEntries = (await db.outbox.toArray()).filter((e) => e.table === 'boards' && e.rowId === b.id)
+    expect(boardEntries).toHaveLength(1)
+  })
+})
