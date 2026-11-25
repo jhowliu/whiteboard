@@ -369,6 +369,10 @@ input {
   background: var(--paper);
   color: var(--fg);
   color-scheme: light;
+  /* A palm resting on the glass while writing must not select chrome text or open a callout. */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .board-root {

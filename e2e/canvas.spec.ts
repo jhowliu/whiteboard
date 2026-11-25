@@ -1,5 +1,5 @@
 import { expect, type Page, test } from '@playwright/test'
-import { center, drawStroke, pointer, snapshot, touchDrag, wheel, type PointerInit, type Snapshot } from './helpers.ts'
+import { PALM_WINDOW_MS, center, drawStroke, pointer, snapshot, touchDrag, wheel, type PointerInit, type Snapshot } from './helpers.ts'
 
 // Issue #1: infinite canvas engine. State is read through the read-only
 // `window.__whiteboard.snapshot()` described in the issue:
@@ -197,6 +197,7 @@ test('pinch zoom is anchored at the pinch midpoint', async ({ page }) => {
   await drawStroke(page, 'pen', [{ x: mid.x, y: mid.y, pressure: 0.5 }, { x: mid.x, y: mid.y, pressure: 0.5 }])
   await expect.poll(() => strokeCount(page)).toBe(1)
   const zoomBefore = (await snapshot(page)).camera.zoom
+  await page.waitForTimeout(PALM_WINDOW_MS + 100) // fingers right after the pen are treated as a palm
 
   const events: PointerInit[] = [
     { type: 'pointerdown', pointerId: 1, pointerType: 'touch', x: mid.x - 20, y: mid.y - 10, isPrimary: true },
@@ -232,6 +233,7 @@ test('a stroke drawn after panning is stored in world coordinates', async ({ pag
   const { zoom, x: camX, y: camY } = (await snapshot(page)).camera
 
   const pan = { x: 150, y: -90 }
+  await page.waitForTimeout(PALM_WINDOW_MS + 100) // a touch right after the pen is treated as a palm
   await touchDrag(page, { x: c.x - 40, y: c.y + 40 }, { x: c.x - 40 + pan.x, y: c.y + 40 + pan.y })
   await expect.poll(async () => (await snapshot(page)).camera.x).not.toBe(camX)
   expect((await snapshot(page)).camera.y).not.toBe(camY)
