@@ -45,7 +45,7 @@ These were decided up front. Do not change them without an issue that says so.
 - Unit tests: Vitest + jsdom, next to the code as `*.test.ts(x)`. Use `fake-indexeddb` for Dexie. Prefer testing the engine's pure functions (geometry, hit-testing, camera math, layout) directly.
 - E2E tests: Playwright in `e2e/`, projects `chromium` and `webkit-ipad`. Simulate Apple Pencil by dispatching `PointerEvent`s with `pointerType: 'pen'` and a `pressure` on the canvas; simulate fingers with `pointerType: 'touch'`.
 - E2E tests read app state through a read-only `window.__whiteboard` snapshot rather than pixels where possible. Extend it when a feature needs new observable state.
-- Every issue with user-visible behaviour adds or extends a journey under `e2e/journeys/` (`*.journey.ts`, the `journey` project) that walks through it like a user, with paced steps and about 0.5 s pauses. Keep each journey under about 20 s. Journeys are recorded as video and turned into GIFs by `scripts/journey-gif.mjs` for the PR's Evidence section.
+- Every issue with user-visible behaviour adds or extends a journey under `e2e/journeys/` (`*.journey.ts`, the `journey` project) that walks through it like a user, with paced steps and about 0.5 s pauses. Keep each journey under about 20 s. Journeys are recorded as video and turned into GIFs by `scripts/journey-gif.mjs` for the PR's Evidence section. A journey's test title is burned into its GIF as a caption: write it in English as `<Feature>: <what the user does> → <what they see>`, in about 40 characters or fewer, the way the existing journeys do.
 - Real Apple Pencil feel and latency cannot be automated; say in the PR's **How to use** what a reviewer should try on an iPad.
 
 ## Pull requests

@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import { center, pacedPenStroke, pause, pinch, snapshot, touchDrag } from '../helpers.ts'
 
 // Journey: / opens a new board → draw → pan → pinch-zoom → reload → ‹ 白板列表 → rename from the card menu.
-test('board journey', async ({ page }) => {
+test('Board: draw → pan → zoom → reload → rename', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByTestId('board-root')).toBeVisible()
   await expect.poll(async () => (await snapshot(page).catch(() => null))?.boardId).toBeTruthy()

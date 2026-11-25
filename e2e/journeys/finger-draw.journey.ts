@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import { center, pause, pinch, snapshot, touchDrag } from '../helpers.ts'
 
 // Journey: new board → 手指繪圖 on → draw with a finger → pinch-zoom.
-test('finger draw journey', async ({ page }) => {
+test('Finger drawing: turn on → draw → pinch-zoom', async ({ page }) => {
   await page.goto('/#/')
   await page.getByTestId('new-board').click()
   await expect(page.getByTestId('board-root')).toBeVisible()
