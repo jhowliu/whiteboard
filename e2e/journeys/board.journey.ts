@@ -1,13 +1,9 @@
 import { expect, test } from '@playwright/test'
 import { center, pacedPenStroke, pause, pinch, snapshot, touchDrag } from '../helpers.ts'
 
-// Journey: board list → new board → draw → pan → pinch-zoom → reload → rename.
+// Journey: / opens a new board → draw → pan → pinch-zoom → reload → ‹ 白板列表 → rename from the card menu.
 test('Board: draw → pan → zoom → reload → rename', async ({ page }) => {
-  await page.goto('/#/')
-  await expect(page.getByTestId('board-list')).toBeVisible()
-  await pause(page)
-
-  await page.getByTestId('new-board').click()
+  await page.goto('/')
   await expect(page.getByTestId('board-root')).toBeVisible()
   await expect.poll(async () => (await snapshot(page).catch(() => null))?.boardId).toBeTruthy()
   const boardId = (await snapshot(page)).boardId
@@ -40,9 +36,12 @@ test('Board: draw → pan → zoom → reload → rename', async ({ page }) => {
   expect(after.strokes.map((s) => s.id)).toEqual(drawn.strokes.map((s) => s.id))
   await pause(page)
 
-  await page.goto('/#/')
+  await page.getByTestId('back-to-list').click()
   const item = page.getByTestId('board-item').first()
   await expect(item).toBeVisible()
+  await pause(page)
+  await item.getByTestId('board-menu').click()
+  await pause(page, 300)
   await item.getByTestId('rename-board').click()
   await page.getByTestId('rename-input').fill('Physics')
   await pause(page, 300)
