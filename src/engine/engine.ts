@@ -1,13 +1,22 @@
-import { type Camera, type Point, panBy, screenToWorld, zoomAt } from './camera.ts'
+import { type Camera, type Point, panBy, screenToWorld, worldToScreen, zoomAt } from './camera.ts'
 import { PdfRenderer } from './pdfRenderer.ts'
 import { quantizeRenderScale } from './pdfLayout.ts'
 import { strokesHitByEraser } from './eraser.ts'
 import { createHistory, type HistoryOps } from './history.ts'
+import { strokesInLasso, transformStroke, unionBBox } from './lasso.ts'
 import { applyCamera, HIGHLIGHTER_ALPHA, PAPER_COLOR, strokePath } from './render.ts'
 import { type MinimapFit } from './minimap.ts'
 import { type BBox, bboxIntersects, computeBBox, DEFAULT_PEN, type Stroke, type StrokePoint, type Tool } from './stroke.ts'
 
-export type ActiveTool = Tool | 'eraser'
+export type ActiveTool = Tool | 'eraser' | 'lasso'
+
+/** True for the tools that lay down an ink stroke (pen, highlighter). */
+function isDrawTool(tool: ActiveTool): tool is Tool {
+  return tool === 'pen' || tool === 'highlighter'
+}
+
+/** The selected strokes and the union of their world bboxes. Null when nothing is selected. */
+export type Selection = { ids: string[]; bbox: BBox }
 
 export type ToolState = { tool: ActiveTool; color: string; size: number }
 
@@ -29,6 +38,8 @@ export type EngineSnapshot = {
   pdfPages: (EnginePdfPage & { rendered: boolean })[]
   tool: ActiveTool
   fingerDraw: boolean
+  /** The current lasso selection, or null. */
+  selection: Selection | null
   /** The world rectangle currently on screen. */
   viewport: BBox
   /** The minimap's current fit while the minimap is open, otherwise null. */
@@ -66,8 +77,12 @@ export type EngineOptions = {
   onPenSeen?: () => void
 }
 
+/** What a pointer gesture is doing: drawing a stroke or eraser pass, drawing a lasso, or moving the selection. */
+type DraftMode = 'draw' | 'lasso' | 'move'
+
 type Draft = {
   pointerId: number
+  mode: DraftMode
   points: StrokePoint[]
   simulatePressure: boolean
   tool: ActiveTool
@@ -75,6 +90,12 @@ type Draft = {
   size: number
   erased: Stroke[]
   finger: boolean
+  /** Screen point where the pointer went down. */
+  down: Point
+  /** Latest screen point of the pointer. */
+  at: Point
+  /** The farthest the pointer has been from `down` (CSS px). A closed lasso loop still counts as a loop. */
+  reach: number
 }
 
 const MOUSE_PRESSURE = 0.5
@@ -84,6 +105,17 @@ const LINE_HEIGHT_PX = 16
 export const PALM_WINDOW_MS = 500
 /** One finger starts panning only after moving this far (CSS px), so a resting palm does not pan. */
 export const PAN_SLOP_PX = 8
+/** A lasso gesture that moves less than this (CSS px) is a tap: it clears the selection and draws nothing. */
+const TAP_SLOP_PX = 4
+/** A selection move shorter than this (CSS px) changes nothing. */
+const MOVE_MIN_PX = 1
+/** Padding (CSS px) between the selected strokes and the selection box. */
+const SELECTION_PAD_PX = 8
+/** Lasso path and selection box: dashed, 1.5 CSS px, in the accent colour. */
+const OVERLAY_LINE_PX = 1.5
+const OVERLAY_DASH = [6, 4]
+const DEFAULT_ACCENT = '#0969da'
+const NO_OFFSET: Point = { x: 0, y: 0 }
 
 function makeCanvas(): HTMLCanvasElement {
   const canvas = document.createElement('canvas')
@@ -133,6 +165,7 @@ export class Engine {
   private resizeObserver: ResizeObserver | null = null
   private readonly listeners = new Set<() => void>()
   private minimapView: MinimapFit | null = null
+  private selection: Selection | null = null
 
   constructor(host: HTMLElement, options: EngineOptions = {}) {
     this.host = host
@@ -171,6 +204,7 @@ export class Engine {
 
   destroy(): void {
     this.listeners.clear()
+    this.selection = null
     cancelAnimationFrame(this.frame)
     this.resizeObserver?.disconnect()
     window.removeEventListener('resize', this.resize)
@@ -187,6 +221,7 @@ export class Engine {
       pdfPages: this.pdfPages.map((p) => ({ ...p, rendered: this.pdfRenderer?.hasBitmap(p) ?? false })),
       tool: this.toolState.tool,
       fingerDraw: this.fingerDraw,
+      selection: this.selection ? { ids: [...this.selection.ids], bbox: { ...this.selection.bbox } } : null,
       viewport: this.viewportRect(),
       minimap: this.minimapView ? { ...this.minimapView } : null,
       strokes: this.strokes.map((s) => ({
@@ -215,12 +250,55 @@ export class Engine {
     return { ...this.toolState }
   }
 
+  /** Clears the lasso selection; a no-op when nothing is selected. */
+  clearSelection(): void {
+    this.setSelection(null)
+  }
+
   undo(): void {
+    this.setSelection(null)
     this.applyOps(this.history.undo())
   }
 
   redo(): void {
+    this.setSelection(null)
     this.applyOps(this.history.redo())
+  }
+
+  private setSelection(selection: Selection | null): void {
+    this.selection = selection
+    this.requestLive()
+    this.emit()
+  }
+
+  /** Selects the strokes with `ids`; an empty list selects nothing. */
+  private selectIds(ids: string[]): void {
+    if (ids.length === 0) {
+      this.setSelection(null)
+      return
+    }
+    const set = new Set(ids)
+    const bbox = unionBBox(this.strokes.filter((s) => set.has(s.id)).map((s) => s.bbox))
+    this.setSelection(bbox ? { ids: [...ids], bbox } : null)
+  }
+
+  /** Screen rectangle of the selection box, with `offset` (world units) applied to the selection first. */
+  private selectionScreenBox(offset: Point = { x: 0, y: 0 }): BBox | null {
+    if (!this.selection) return null
+    const b = this.selection.bbox
+    const tl = worldToScreen(this.camera, { x: b.minX + offset.x, y: b.minY + offset.y })
+    const br = worldToScreen(this.camera, { x: b.maxX + offset.x, y: b.maxY + offset.y })
+    return {
+      minX: tl.x - SELECTION_PAD_PX,
+      minY: tl.y - SELECTION_PAD_PX,
+      maxX: br.x + SELECTION_PAD_PX,
+      maxY: br.y + SELECTION_PAD_PX,
+    }
+  }
+
+  private inSelectionBox(p: Point): boolean {
+    const box = this.selectionScreenBox()
+    return !!box && p.x >= box.minX && p.x <= box.maxX && p.y >= box.minY && p.y <= box.maxY
   }
 
   private applyOps(ops: HistoryOps | null): void {
@@ -358,8 +436,20 @@ export class Engine {
     const simulatePressure = e.pointerType !== 'pen'
     const rect = this.live.getBoundingClientRect()
     const { tool, color, size } = this.toolState
+    const at = this.toScreen(e)
+    let mode: DraftMode = 'draw'
+    if (tool === 'lasso') {
+      if (this.selection && this.inSelectionBox(at)) {
+        mode = 'move'
+        this.committedDirty = true // the selected strokes are hidden from the committed layer while moving
+      } else {
+        mode = 'lasso'
+        this.setSelection(null)
+      }
+    }
     const draft: Draft = {
       pointerId: e.pointerId,
+      mode,
       points: [this.samplePoint(e, rect, simulatePressure)],
       simulatePressure,
       tool,
@@ -367,9 +457,12 @@ export class Engine {
       size,
       erased: [],
       finger,
+      down: at,
+      at,
+      reach: 0,
     }
     this.draft = draft
-    if (tool === 'eraser') this.eraseAt(draft, draft.points[0]![0], draft.points[0]![1])
+    if (mode === 'draw' && tool === 'eraser') this.eraseAt(draft, draft.points[0]![0], draft.points[0]![1])
     this.capture(e)
     this.requestLive()
   }
@@ -378,14 +471,19 @@ export class Engine {
     if (e.pointerType === 'pen') this.lastPenAt = performance.now() // also while hovering
     if (this.draft && e.pointerId === this.draft.pointerId) {
       e.preventDefault()
-      if (this.draft.finger) this.touches.set(e.pointerId, this.toScreen(e))
-      const rect = this.live.getBoundingClientRect()
-      const coalesced = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : []
-      const samples = coalesced.length > 0 ? coalesced : [e]
-      for (const s of samples) {
-        const p = this.samplePoint(s, rect, this.draft.simulatePressure)
-        this.draft.points.push(p)
-        if (this.draft.tool === 'eraser') this.eraseAt(this.draft, p[0], p[1])
+      const draft = this.draft
+      const at = this.toScreen(e)
+      this.trackDraft(draft, at)
+      if (draft.finger) this.touches.set(e.pointerId, at)
+      if (draft.mode !== 'move') {
+        const rect = this.live.getBoundingClientRect()
+        const coalesced = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : []
+        const samples = coalesced.length > 0 ? coalesced : [e]
+        for (const s of samples) {
+          const p = this.samplePoint(s, rect, draft.simulatePressure)
+          draft.points.push(p)
+          if (draft.mode === 'draw' && draft.tool === 'eraser') this.eraseAt(draft, p[0], p[1])
+        }
       }
       this.requestLive()
       return
@@ -424,6 +522,7 @@ export class Engine {
     if (this.draft && e.pointerId === this.draft.pointerId) {
       e.preventDefault()
       this.touches.delete(e.pointerId)
+      this.trackDraft(this.draft, this.toScreen(e))
       this.commitDraft()
       return
     }
@@ -455,11 +554,12 @@ export class Engine {
   /** Drops the stroke in progress; an eraser draft is kept (its erasures already happened) so it stays undoable. */
   private discardDraft(): void {
     if (!this.draft) return
-    if (this.draft.tool === 'eraser') {
+    if (this.draft.mode === 'draw' && this.draft.tool === 'eraser') {
       this.commitDraft()
       return
     }
     this.draft = null
+    this.committedDirty = true // a cancelled move shows its strokes again
     this.requestLive()
   }
 
@@ -477,6 +577,7 @@ export class Engine {
       this.emit()
     }
     this.draft = null
+    this.committedDirty = true
     this.requestLive()
   }
 
@@ -484,12 +585,21 @@ export class Engine {
     const draft = this.draft
     if (!draft) return
     this.draft = null
+    if (draft.mode === 'lasso') {
+      this.finishLasso(draft)
+      return
+    }
+    if (draft.mode === 'move') {
+      this.finishMove(draft)
+      return
+    }
     if (draft.tool === 'eraser') {
       this.history.recordErase(draft.erased)
       this.notifyHistory()
       this.requestLive()
       return
     }
+    if (!isDrawTool(draft.tool)) return
     const stroke: Stroke = {
       id: crypto.randomUUID(),
       tool: draft.tool,
@@ -507,6 +617,53 @@ export class Engine {
     this.committedDirty = true
     this.requestLive()
     this.emit()
+  }
+
+  /** Records where a gesture's pointer is now, and how far it has ever been from where it went down. */
+  private trackDraft(draft: Draft, at: Point): void {
+    draft.at = at
+    draft.reach = Math.max(draft.reach, Math.hypot(at.x - draft.down.x, at.y - draft.down.y))
+  }
+
+  /** A lasso that never went beyond the tap slop is a tap: it deselects and draws nothing. Otherwise it selects what it encloses. */
+  private finishLasso(draft: Draft): void {
+    if (draft.reach < TAP_SLOP_PX) {
+      this.setSelection(null)
+      return
+    }
+    this.selectIds(strokesInLasso(this.strokes, draft.points.map(([x, y]) => ({ x, y }))))
+  }
+
+  /**
+   * Moves the selected strokes: tombstones the old ones and commits translated copies with new ids.
+   * The selection follows the copies. One move is one history entry.
+   */
+  private finishMove(draft: Draft): void {
+    const dxPx = draft.at.x - draft.down.x
+    const dyPx = draft.at.y - draft.down.y
+    const ids = new Set(this.selection?.ids ?? [])
+    const before = this.strokes.filter((s) => ids.has(s.id))
+    if (before.length === 0 || Math.hypot(dxPx, dyPx) < MOVE_MIN_PX) {
+      this.requestLive() // the strokes come back on the committed layer
+      return
+    }
+    const dx = dxPx / this.camera.zoom
+    const dy = dyPx / this.camera.zoom
+    const now = Date.now()
+    const after: Stroke[] = before.map((s) => ({
+      ...transformStroke(s, { dx, dy }),
+      id: crypto.randomUUID(),
+      createdAt: now,
+    }))
+    this.removeStrokes(before.map((s) => s.id))
+    for (const s of after) {
+      this.strokes.push(s)
+      this.options.onStrokeCommit?.(s)
+    }
+    this.history.recordTransform(before, after)
+    this.notifyHistory()
+    this.committedDirty = true
+    this.selectIds(after.map((s) => s.id))
   }
 
   private setCamera(camera: Camera): void {
@@ -613,11 +770,14 @@ export class Engine {
     ctx.clearRect(0, 0, this.committed.width, this.committed.height)
     applyCamera(ctx, this.camera, this.dpr)
     const view = this.viewportRect()
+    // While a selection is being moved, its strokes are drawn on the live layer instead.
+    const moving = this.draft?.mode === 'move' ? new Set(this.selection?.ids) : null
     const ordered = [
       ...this.strokes.filter((s) => s.tool === 'highlighter'),
       ...this.strokes.filter((s) => s.tool !== 'highlighter'),
     ]
     for (const stroke of ordered) {
+      if (moving?.has(stroke.id)) continue
       const pad = stroke.size
       const box = {
         minX: stroke.bbox.minX - pad,
@@ -644,16 +804,54 @@ export class Engine {
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.clearRect(0, 0, this.live.width, this.live.height)
     const draft = this.draft
-    if (!draft || draft.tool === 'eraser') return
-    applyCamera(ctx, this.camera, this.dpr)
-    ctx.fillStyle = draft.color
-    ctx.globalAlpha = draft.tool === 'highlighter' ? HIGHLIGHTER_ALPHA : 1
-    ctx.fill(
-      strokePath(
-        { points: draft.points, size: draft.size, color: draft.color, simulatePressure: draft.simulatePressure, tool: draft.tool },
-        false,
-      ),
-    )
+    const offset = draft?.mode === 'move' ? this.moveOffset(draft) : NO_OFFSET
+    if (draft?.mode === 'draw' && isDrawTool(draft.tool)) {
+      applyCamera(ctx, this.camera, this.dpr)
+      this.fillStroke(ctx, { points: draft.points, size: draft.size, color: draft.color, simulatePressure: draft.simulatePressure, tool: draft.tool })
+    }
+    if (draft?.mode === 'move' && this.selection) {
+      applyCamera(ctx, this.camera, this.dpr)
+      const ids = new Set(this.selection.ids)
+      const delta = { dx: offset.x, dy: offset.y }
+      for (const s of this.strokes) {
+        if (ids.has(s.id)) this.fillStroke(ctx, transformStroke(s, delta))
+      }
+    }
+    // Overlays are drawn in screen pixels, so their width does not scale with the zoom.
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0)
+    ctx.strokeStyle = this.accentColor()
+    ctx.lineWidth = OVERLAY_LINE_PX
+    ctx.setLineDash(OVERLAY_DASH)
+    if (draft?.mode === 'lasso' && draft.points.length > 1) {
+      ctx.beginPath()
+      draft.points.forEach(([x, y], i) => {
+        const p = worldToScreen(this.camera, { x, y })
+        if (i === 0) ctx.moveTo(p.x, p.y)
+        else ctx.lineTo(p.x, p.y)
+      })
+      ctx.closePath()
+      ctx.stroke()
+    }
+    const box = this.selectionScreenBox(offset)
+    if (box) ctx.strokeRect(box.minX, box.minY, box.maxX - box.minX, box.maxY - box.minY)
+    ctx.setLineDash([])
+  }
+
+  /** Translation of a move in progress, in world units: the pointer delta divided by the zoom. */
+  private moveOffset(draft: Draft): Point {
+    return { x: (draft.at.x - draft.down.x) / this.camera.zoom, y: (draft.at.y - draft.down.y) / this.camera.zoom }
+  }
+
+  private fillStroke(ctx: CanvasRenderingContext2D, stroke: { points: StrokePoint[]; size: number; color: string; simulatePressure: boolean; tool?: Tool }): void {
+    ctx.fillStyle = stroke.color
+    ctx.globalAlpha = stroke.tool === 'highlighter' ? HIGHLIGHTER_ALPHA : 1
+    ctx.fill(strokePath(stroke, false))
     ctx.globalAlpha = 1
+  }
+
+  /** The `--accent` colour of the page, for overlays drawn on the canvas. */
+  private accentColor(): string {
+    const value = getComputedStyle(this.host).getPropertyValue('--accent').trim()
+    return value || DEFAULT_ACCENT
   }
 }

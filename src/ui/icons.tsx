@@ -56,6 +56,14 @@ export const RedoIcon = () => (
   </Icon>
 )
 
+/** A dashed loop closing around a small cursor tail: the lasso. */
+export const LassoIcon = () => (
+  <Icon strokeDasharray="2.6 2.4">
+    <path d="M12 4.5c4.6 0 8 2.4 8 5.6 0 3.3-3.6 5.9-8.2 5.9-4.7 0-7.8-2.5-7.8-5.6S7.4 4.5 12 4.5Z" />
+    <path d="M12.1 16.1c.1 1.2.5 2.4 1.4 3.4" strokeDasharray="none" />
+  </Icon>
+)
+
 export const ImportIcon = () => (
   <Icon>
     <path d="M14 3.5H7.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8z" />
