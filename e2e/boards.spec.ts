@@ -3,7 +3,8 @@ import { boardBox, pointer, type PointerInit } from './helpers.ts'
 
 // Issue #5: board list + local persistence. Expected UI hooks (data-testid):
 //   board-list, new-board (button), board-item (one per board; contains its title),
-//   open-board / rename-board / delete-board (buttons inside a board-item),
+//   open-board (button inside a board-item), board-menu (the card's 「⋯」 button) opening
+//   rename-board / delete-board (menu items),
 //   rename-input (text input shown on rename; Enter commits).
 // Routes: `#/` list, `#/board/<id>` board. snapshot() includes `boardId`.
 
@@ -58,6 +59,7 @@ test('rename and delete a board; deletion survives reload', async ({ page }) => 
   const item = page.getByTestId('board-item').first()
   await expect(item).toContainText('未命名白板')
 
+  await item.getByTestId('board-menu').click()
   await item.getByTestId('rename-board').click()
   await page.getByTestId('rename-input').fill('Physics')
   await page.getByTestId('rename-input').press('Enter')
@@ -67,6 +69,7 @@ test('rename and delete a board; deletion survives reload', async ({ page }) => 
   await expect(page.getByTestId('board-item').first()).toContainText('Physics')
 
   page.on('dialog', (d) => void d.accept())
+  await page.getByTestId('board-item').first().getByTestId('board-menu').click()
   await page.getByTestId('board-item').first().getByTestId('delete-board').click()
   await expect(page.getByTestId('board-item')).toHaveCount(0)
   await page.reload()

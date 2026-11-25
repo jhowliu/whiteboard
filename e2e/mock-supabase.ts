@@ -91,7 +91,7 @@ export async function mockSupabase(page: Page): Promise<MockSupabase> {
   return mock
 }
 
-/** Header sign-in through the dialog (email, then one-time code). */
+/** Sign-in through the board list header's dialog (email, then one-time code). Call it on `#/`. */
 export async function signInThroughDialog(page: Page, { pauseMs = 0 }: { pauseMs?: number } = {}) {
   const header = page.getByRole('banner')
   await header.getByRole('button', { name: '登入' }).click()

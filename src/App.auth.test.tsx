@@ -4,10 +4,11 @@
 // Contract assumed by these tests:
 // - `src/sync/supabaseClient.ts` calls `createClient(VITE_SUPABASE_URL,
 //   VITE_SUPABASE_ANON_KEY, ...)` only when both are non-empty.
-// - Header (the page's `banner`) has a 「登入」 button that opens a `dialog`.
+// - The board list's header (the page's `banner`, at `#/`) has a 「登入」 button that opens a `dialog`.
 // - Step 1 is a <form> with an email field; step 2 is a <form> with a single
 //   code field (`autocomplete="one-time-code"`, `inputmode="numeric"`).
 // - Errors are shown in an element with `role="alert"`.
+import 'fake-indexeddb/auto'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -116,6 +117,7 @@ async function loadApp(env: { url?: string; key?: string } = { url: URL, key: KE
 
 async function renderApp(env?: { url?: string; key?: string }) {
   const App = await loadApp(env)
+  window.location.hash = '#/'
   render(<App />)
   return within(screen.getByRole('banner'))
 }
@@ -197,7 +199,7 @@ describe('local-only mode (no Supabase env vars)', () => {
   it('renders the app without a 登入 button when neither variable is set', async () => {
     const header = await renderApp({ url: undefined, key: undefined })
     expect(screen.getByRole('heading', { name: 'Whiteboard' })).toBeInTheDocument()
-    expect(screen.getByTestId('board-root')).toBeInTheDocument()
+    expect(screen.getByTestId('board-list')).toBeInTheDocument()
     await act(async () => {})
     expect(header.queryByRole('button', { name: '登入' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '登入' })).not.toBeInTheDocument()
@@ -206,7 +208,7 @@ describe('local-only mode (no Supabase env vars)', () => {
 
   it('treats empty strings as unset', async () => {
     await renderApp({ url: '', key: '' })
-    expect(screen.getByTestId('board-root')).toBeInTheDocument()
+    expect(screen.getByTestId('board-list')).toBeInTheDocument()
     await act(async () => {})
     expect(screen.queryByRole('button', { name: '登入' })).not.toBeInTheDocument()
     expect(fake.createClient).not.toHaveBeenCalled()
@@ -214,7 +216,7 @@ describe('local-only mode (no Supabase env vars)', () => {
 
   it('stays local-only when only the URL is set', async () => {
     await renderApp({ url: URL, key: undefined })
-    expect(screen.getByTestId('board-root')).toBeInTheDocument()
+    expect(screen.getByTestId('board-list')).toBeInTheDocument()
     await act(async () => {})
     expect(screen.queryByRole('button', { name: '登入' })).not.toBeInTheDocument()
     expect(fake.createClient).not.toHaveBeenCalled()
@@ -222,7 +224,7 @@ describe('local-only mode (no Supabase env vars)', () => {
 
   it('stays local-only when only the anon key is set', async () => {
     await renderApp({ url: undefined, key: KEY })
-    expect(screen.getByTestId('board-root')).toBeInTheDocument()
+    expect(screen.getByTestId('board-list')).toBeInTheDocument()
     await act(async () => {})
     expect(screen.queryByRole('button', { name: '登入' })).not.toBeInTheDocument()
     expect(fake.createClient).not.toHaveBeenCalled()
@@ -233,7 +235,7 @@ describe('with Supabase configured', () => {
   it('creates the client from the env vars and shows 登入 in the header', async () => {
     const header = await renderApp()
     expect(await header.findByRole('button', { name: '登入' })).toBeInTheDocument()
-    expect(screen.getByTestId('board-root')).toBeInTheDocument()
+    expect(screen.getByTestId('board-list')).toBeInTheDocument()
     expect(fake.createClient).toHaveBeenCalled()
     expect(fake.createClient.mock.calls[0][0]).toBe(URL)
     expect(fake.createClient.mock.calls[0][1]).toBe(KEY)

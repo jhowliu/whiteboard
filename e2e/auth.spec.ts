@@ -98,9 +98,9 @@ async function signIn(page: Page, calls: AuthCalls) {
 
 test('sign in with an email code, stay signed in after reload, then sign out', async ({ page }) => {
   const calls = await mockAuth(page)
-  await page.goto('/')
+  await page.goto('/#/')
   const header = page.getByRole('banner')
-  await expect(page.getByTestId('board-root')).toBeVisible()
+  await expect(page.getByTestId('board-list')).toBeVisible()
 
   await signIn(page, calls)
 
@@ -143,7 +143,7 @@ test('a wrong code shows a Traditional Chinese error and keeps the user signed o
     return route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: '{}' })
   })
 
-  await page.goto('/')
+  await page.goto('/#/')
   const header = page.getByRole('banner')
   await header.getByRole('button', { name: '登入' }).click()
   const dialog = page.getByRole('dialog')
