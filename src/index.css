@@ -429,6 +429,11 @@ input {
   background: var(--surface-hover);
 }
 
+.chrome-button[aria-pressed='true'] {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
 .chrome-button:has(> .chrome-label) {
   padding-right: 12px;
 }
@@ -594,6 +599,34 @@ input {
     margin-left: 0;
     padding-left: 0;
     border-left: 0;
+  }
+}
+
+/* ---- Minimap ------------------------------------------------------------- */
+
+/* Bottom-right, above the drawing toolbar (--minimap-lift is set from the toolbar's height). */
+.minimap {
+  position: absolute;
+  z-index: 10;
+  right: max(12px, env(safe-area-inset-right));
+  bottom: calc(16px + env(safe-area-inset-bottom) + var(--minimap-lift, 0px));
+  display: block;
+  width: 200px;
+  height: 150px;
+  border-radius: 18px;
+  box-shadow:
+    var(--shadow-float),
+    0 0 0 1px var(--border);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: crosshair;
+}
+
+@media (max-width: 560px) {
+  .minimap {
+    width: 144px;
+    height: 108px;
   }
 }
 

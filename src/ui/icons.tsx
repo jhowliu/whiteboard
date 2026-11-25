@@ -102,3 +102,10 @@ export const FingerIcon = () => (
     <path d="M16.5 11.25a1.75 1.75 0 0 1 3.5 0V15a6 6 0 0 1-6 6h-1.2a6 6 0 0 1-4.7-2.3l-3-3.8a1.6 1.6 0 0 1 2.5-2L9.5 15" />
   </Icon>
 )
+
+export const MinimapIcon = () => (
+  <Icon>
+    <rect x="3.5" y="5" width="17" height="14" rx="2.5" />
+    <rect x="8" y="9" width="6" height="5" rx="1" />
+  </Icon>
+)

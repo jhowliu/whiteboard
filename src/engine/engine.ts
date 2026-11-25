@@ -4,11 +4,14 @@ import { quantizeRenderScale } from './pdfLayout.ts'
 import { strokesHitByEraser } from './eraser.ts'
 import { createHistory, type HistoryOps } from './history.ts'
 import { applyCamera, HIGHLIGHTER_ALPHA, PAPER_COLOR, strokePath } from './render.ts'
+import { type MinimapFit } from './minimap.ts'
 import { type BBox, bboxIntersects, computeBBox, DEFAULT_PEN, type Stroke, type StrokePoint, type Tool } from './stroke.ts'
 
 export type ActiveTool = Tool | 'eraser'
 
 export type ToolState = { tool: ActiveTool; color: string; size: number }
+
+export type { MinimapFit }
 
 export type EnginePdfPage = {
   id: string
@@ -26,6 +29,10 @@ export type EngineSnapshot = {
   pdfPages: (EnginePdfPage & { rendered: boolean })[]
   tool: ActiveTool
   fingerDraw: boolean
+  /** The world rectangle currently on screen. */
+  viewport: BBox
+  /** The minimap's current fit while the minimap is open, otherwise null. */
+  minimap: MinimapFit | null
   strokes: {
     id: string
     tool: Stroke['tool']
@@ -115,6 +122,8 @@ export class Engine {
   private liveDirty = false
   private frame = 0
   private resizeObserver: ResizeObserver | null = null
+  private readonly listeners = new Set<() => void>()
+  private minimapView: MinimapFit | null = null
 
   constructor(host: HTMLElement, options: EngineOptions = {}) {
     this.host = host
@@ -148,6 +157,7 @@ export class Engine {
   }
 
   destroy(): void {
+    this.listeners.clear()
     cancelAnimationFrame(this.frame)
     this.resizeObserver?.disconnect()
     window.removeEventListener('resize', this.resize)
@@ -164,6 +174,8 @@ export class Engine {
       pdfPages: this.pdfPages.map((p) => ({ ...p, rendered: this.pdfRenderer?.hasBitmap(p) ?? false })),
       tool: this.toolState.tool,
       fingerDraw: this.fingerDraw,
+      viewport: this.viewportRect(),
+      minimap: this.minimapView ? { ...this.minimapView } : null,
       strokes: this.strokes.map((s) => ({
         id: s.id,
         tool: s.tool,
@@ -207,6 +219,7 @@ export class Engine {
       }
       this.committedDirty = true
       this.schedule()
+      this.emit()
     }
     this.notifyHistory()
   }
@@ -220,6 +233,7 @@ export class Engine {
     this.options.onStrokesDelete?.(removed.map((s) => s.id))
     this.committedDirty = true
     this.schedule()
+    this.emit()
     return removed
   }
 
@@ -237,10 +251,49 @@ export class Engine {
     return { x: this.camera.x, y: this.camera.y }
   }
 
+  /** The world rectangle currently on screen. */
+  viewportRect(): BBox {
+    const tl = screenToWorld(this.camera, { x: 0, y: 0 })
+    const br = screenToWorld(this.camera, { x: this.cssWidth, y: this.cssHeight })
+    return { minX: tl.x, minY: tl.y, maxX: br.x, maxY: br.y }
+  }
+
+  /** Moves the camera so `world` is at the canvas centre. The zoom does not change. */
+  centerOn(world: Point): void {
+    const zoom = this.camera.zoom
+    this.setCamera({ x: world.x - this.cssWidth / 2 / zoom, y: world.y - this.cssHeight / 2 / zoom, zoom })
+  }
+
+  /**
+   * Calls `listener` after the camera, strokes or PDF pages change, and after the canvas is resized.
+   * Returns the function that unsubscribes it.
+   */
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener)
+    return () => {
+      this.listeners.delete(listener)
+    }
+  }
+
+  /** Records the minimap's fit for `snapshot()`; pass null when the minimap is closed. */
+  setMinimapFit(fit: MinimapFit | null): void {
+    this.minimapView = fit ? { ...fit } : null
+  }
+
+  /** Current strokes and PDF pages, for drawing an overview of the board. */
+  content(): { strokes: readonly Stroke[]; pdfPages: readonly EnginePdfPage[] } {
+    return { strokes: [...this.strokes], pdfPages: [...this.pdfPages] }
+  }
+
+  private emit(): void {
+    for (const listener of [...this.listeners]) listener()
+  }
+
   addPdfPages(pages: EnginePdfPage[]): void {
     this.pdfPages.push(...pages)
     this.pdfDirty = true
     this.schedule()
+    this.emit()
   }
 
   // ---- input ---------------------------------------------------------------
@@ -398,6 +451,7 @@ export class Engine {
       }
       this.committedDirty = true
       this.schedule()
+      this.emit()
     }
     this.draft = null
     this.requestLive()
@@ -429,6 +483,7 @@ export class Engine {
     this.notifyHistory()
     this.committedDirty = true
     this.requestLive()
+    this.emit()
   }
 
   private setCamera(camera: Camera): void {
@@ -438,6 +493,7 @@ export class Engine {
     this.liveDirty = true
     this.pdfDirty = true
     this.schedule()
+    this.emit()
   }
 
   // ---- rendering -----------------------------------------------------------
@@ -457,6 +513,7 @@ export class Engine {
     this.liveDirty = true
     this.pdfDirty = true
     this.render()
+    this.emit()
   }
 
   private requestLive(): void {
@@ -488,12 +545,6 @@ export class Engine {
     }
   }
 
-  private viewport(): BBox {
-    const tl = screenToWorld(this.camera, { x: 0, y: 0 })
-    const br = screenToWorld(this.camera, { x: this.cssWidth, y: this.cssHeight })
-    return { minX: tl.x, minY: tl.y, maxX: br.x, maxY: br.y }
-  }
-
   private renderPdf(): void {
     const ctx = this.pdfLayer.getContext('2d')
     if (!ctx) return
@@ -509,7 +560,7 @@ export class Engine {
       },
     )
     applyCamera(ctx, this.camera, this.dpr)
-    const v = this.viewport()
+    const v = this.viewportRect()
     // Prefetch margin: one viewport height above and below so neighbouring pages are ready before they scroll in.
     const pad = v.maxY - v.minY
     const view = { ...v, minY: v.minY - pad, maxY: v.maxY + pad }
@@ -538,7 +589,7 @@ export class Engine {
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.clearRect(0, 0, this.committed.width, this.committed.height)
     applyCamera(ctx, this.camera, this.dpr)
-    const view = this.viewport()
+    const view = this.viewportRect()
     const ordered = [
       ...this.strokes.filter((s) => s.tool === 'highlighter'),
       ...this.strokes.filter((s) => s.tool !== 'highlighter'),
