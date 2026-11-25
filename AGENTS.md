@@ -54,6 +54,32 @@ Every PR description has a **Change map** and a **How to use** section.
 
 - **Change map:** which public interfaces changed; from which entry point (key, gesture, command, route, event) the flow goes through which interface to which changed functions; other changed functions; then the file list. Write "None" for empty items.
   - **Interfaces** are the contracts the project exposes to users or other code: UI gestures and controls, the stored data schema (Dexie / Supabase), `window.__whiteboard`, environment variables, and types and functions imported across files.
-  - **Flows** are Mermaid `sequenceDiagram`s, one per entry point. Participants are the user, the modules holding the interfaces, and external programs (IndexedDB, Supabase). Messages follow the real call order with function names and key data; use `alt`/`opt` for branches, `loop` for loops, and `rect` to highlight new or changed parts. Flows are derived statically and may miss dynamic calls; they are a reading aid, not a review result.
-  - **Header and file table:** the header reads `<base> (sha) → <branch> (sha) · N files · +X −Y`. Build the file table (status, +/−, path) from `git diff --numstat` / `--name-status` `<PR base>...HEAD` and put it in a `<details>` block.
+  - **Flows** are Mermaid `sequenceDiagram`s, one per entry point. Participants are the user, the modules holding the interfaces, and external programs (IndexedDB, Supabase). Messages follow the real call order with function names and key data, one call or fact per message: where a message would need a semicolon, write two messages, because GitHub's Mermaid parser rejects `;` in message text. Use `alt`/`opt` for branches, `loop` for loops, and `rect` to highlight new or changed parts. Flows are derived statically and may miss dynamic calls; they are a reading aid, not a review result.
+  - **Header and file table:** the header is the first line under `## Change map`, outside the `<details>` block. `<base>` is the PR's base branch (`main`) and `<branch>` is the PR's head branch, each with its short sha. Build the counts and the file table (status, +/−, path) from `git diff --numstat` / `--name-status` `<base>...<branch>` at the final head commit, so they match the diff GitHub shows. The skeleton:
+
+    ````markdown
+    ## Change map
+
+    `main (0f709c6) → agent-cage/gh-29-run-202611241409 (4609356) · 11 files · +231 −12`
+
+    **Interfaces** …
+
+    **Flows** …
+
+    **Other changed functions** …
+
+    **Files**
+
+    <details>
+    <summary>11 files · +231 −12</summary>
+
+    | Status | +/− | Path |
+    |---|---:|---|
+    | Added | +55/−0 | `scripts/journey-gif-lib.mjs` |
+    | Modified | +1/−1 | `AGENTS.md` |
+
+    </details>
+
+    ## How to use
+    ````
 - **How to use:** how a reviewer actually tries the change: the start command, what to tap, draw or press, and what they should see. With no user-visible behaviour, say so and say how to verify it (for example, which tests to run).
