@@ -8,6 +8,10 @@ export type Snapshot = {
   boardId?: string
   sync: { status: 'synced' | 'syncing' | 'offline' | 'failed'; pending: number }
   camera: { x: number; y: number; zoom: number }
+  /** The world rectangle on screen. */
+  viewport: { minX: number; minY: number; maxX: number; maxY: number }
+  /** While the minimap is open: panel CSS px = world × scale + (dx, dy). Null while closed. */
+  minimap: { scale: number; dx: number; dy: number } | null
   pdfPages: { id: string; pdfId: string; pageIndex: number; x: number; y: number; width: number; height: number; rendered: boolean }[]
   strokes: {
     id: string

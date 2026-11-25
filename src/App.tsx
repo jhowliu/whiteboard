@@ -5,7 +5,9 @@ import { type ActiveTool, Engine } from './engine/engine.ts'
 import type { Stroke } from './engine/stroke.ts'
 import { type LandingTarget, resolveLanding } from './landing.ts'
 import { loadFingerDraw, saveFingerDraw } from './storage/fingerDraw.ts'
+import { loadMinimap, saveMinimap } from './storage/minimap.ts'
 import { loadCamera, saveCamera } from './storage/camera.ts'
+import Minimap from './boards/Minimap.tsx'
 import { loadLastBoardId, saveLastBoardId } from './storage/lastBoard.ts'
 import { readPdfPageSizes } from './engine/pdfRenderer.ts'
 import { exportAnnotatedPdf, annotatedFileName } from './engine/pdfExport.ts'
@@ -29,6 +31,7 @@ import {
   FingerIcon,
   HighlighterIcon,
   ImportIcon,
+  MinimapIcon,
   PenIcon,
   RedoIcon,
   UndoIcon,
@@ -82,6 +85,14 @@ function BoardView({ boardId, onBack }: { boardId: string; onBack: () => void })
   const [size, setSize] = useState(SIZES[1]!)
   const [fingerDraw, setFingerDrawState] = useState(() => loadFingerDraw() ?? true)
   const [history, setHistory] = useState({ canUndo: false, canRedo: false })
+  const [minimapOpen, setMinimapOpen] = useState(() => loadMinimap())
+  const [engine, setEngine] = useState<Engine | null>(null)
+
+  const toggleMinimap = () => {
+    const next = !minimapOpen
+    setMinimapOpen(next)
+    saveMinimap(next)
+  }
 
   useEffect(() => {
     engineRef.current?.setToolState({ tool, color, size })
@@ -215,9 +226,11 @@ function BoardView({ boardId, onBack }: { boardId: string; onBack: () => void })
       })
       engine.setToolState({ tool, color, size })
       engineRef.current = engine
+      setEngine(engine)
       const unexpose = exposeDebug(engine)
       cleanup = () => {
         engineRef.current = null
+        setEngine(null)
         unexpose()
         engine.destroy()
       }
@@ -329,6 +342,17 @@ function BoardView({ boardId, onBack }: { boardId: string; onBack: () => void })
             <button
               type="button"
               className="chrome-button"
+              data-testid="minimap-toggle"
+              aria-label="小地圖"
+              aria-pressed={minimapOpen}
+              title="小地圖"
+              onClick={toggleMinimap}
+            >
+              <MinimapIcon />
+            </button>
+            <button
+              type="button"
+              className="chrome-button"
               disabled={!history.canUndo}
               data-testid="undo"
               aria-label="復原"
@@ -424,6 +448,7 @@ function BoardView({ boardId, onBack }: { boardId: string; onBack: () => void })
           </div>
         </div>
       )}
+      {!missing && minimapOpen && engine && <Minimap engine={engine} />}
     </div>
   )
 }
