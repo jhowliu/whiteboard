@@ -67,10 +67,75 @@ export function mapStroke(
   }
 }
 
-/** Translates a stroke by (dx, dy) world units. Pressure, tool, colour, size are kept. */
+/** Translation (world units) or uniform scale about an anchor (world point). */
+export type StrokeTransform = { dx: number; dy: number } | { scale: number; anchor: LassoPoint }
+
+/**
+ * Moves or scales a stroke. Pressure, tool, colour and simulatePressure are kept.
+ * A translation shifts the points by (dx, dy). A scale maps each point to anchor + (p - anchor) * scale and
+ * multiplies `size` by the scale too. Either way the bbox is recomputed. The input is not changed.
+ */
 export function transformStroke(
   stroke: Pick<Stroke, 'tool' | 'color' | 'size' | 'points' | 'simulatePressure'>,
-  { dx, dy }: { dx: number; dy: number },
+  t: StrokeTransform,
 ): Omit<Stroke, 'id' | 'createdAt'> {
-  return mapStroke(stroke, (x, y) => ({ x: x + dx, y: y + dy }))
+  if ('scale' in t) {
+    const { scale, anchor } = t
+    const scaled = mapStroke(stroke, (x, y) => ({ x: anchor.x + (x - anchor.x) * scale, y: anchor.y + (y - anchor.y) * scale }))
+    return { ...scaled, size: stroke.size * scale }
+  }
+  return mapStroke(stroke, (x, y) => ({ x: x + t.dx, y: y + t.dy }))
+}
+
+/** Lowest and highest factor a resize drag can reach. */
+export const RESIZE_MIN = 0.1
+export const RESIZE_MAX = 10
+
+/** The four corners of a box, named by compass direction (`nw` = minX, minY). */
+export type Corner = 'nw' | 'ne' | 'sw' | 'se'
+
+/** The dragged corner of `bbox` (unpadded world corner) and the opposite corner, which stays fixed. */
+export function cornerAndAnchor(bbox: BBox, corner: Corner): { corner: LassoPoint; anchor: LassoPoint } {
+  const east = corner === 'ne' || corner === 'se'
+  const south = corner === 'sw' || corner === 'se'
+  return {
+    corner: { x: east ? bbox.maxX : bbox.minX, y: south ? bbox.maxY : bbox.minY },
+    anchor: { x: east ? bbox.minX : bbox.maxX, y: south ? bbox.minY : bbox.maxY },
+  }
+}
+
+/**
+ * Uniform scale factor for a corner drag. d0 = corner - anchor (world), d1 = d0 + delta / zoom, and the factor is
+ * the projection of d1 onto d0 divided by |d0|^2, clamped to [RESIZE_MIN, RESIZE_MAX]. `delta` is the pointer
+ * movement in screen px and `zoom` converts it to world units. A zero-length diagonal gives 1.
+ */
+export function resizeFactor({
+  anchor,
+  corner,
+  delta,
+  zoom,
+}: {
+  anchor: LassoPoint
+  corner: LassoPoint
+  delta: LassoPoint
+  zoom: number
+}): number {
+  const d0x = corner.x - anchor.x
+  const d0y = corner.y - anchor.y
+  const len2 = d0x * d0x + d0y * d0y
+  if (len2 === 0) return 1
+  const d1x = d0x + delta.x / zoom
+  const d1y = d0y + delta.y / zoom
+  const s = (d1x * d0x + d1y * d0y) / len2
+  return Math.min(RESIZE_MAX, Math.max(RESIZE_MIN, s))
+}
+
+/** Scales a box about `anchor` by `s`. For a positive `s` this equals the bbox of the scaled points. */
+export function scaleBBox(bbox: BBox, s: number, anchor: LassoPoint): BBox {
+  return {
+    minX: anchor.x + (bbox.minX - anchor.x) * s,
+    minY: anchor.y + (bbox.minY - anchor.y) * s,
+    maxX: anchor.x + (bbox.maxX - anchor.x) * s,
+    maxY: anchor.y + (bbox.maxY - anchor.y) * s,
+  }
 }

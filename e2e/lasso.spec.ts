@@ -1,10 +1,12 @@
 import { expect, type Page, test } from '@playwright/test'
-import { PALM_WINDOW_MS, center, drawStroke, pinch, pointer, snapshot, touchDrag, wheel, type PointerInit, type Snapshot } from './helpers.ts'
+import { PALM_WINDOW_MS, boardBox, center, drawStroke, pinch, pointer, snapshot, touchDrag, wheel, type PointerInit, type Snapshot } from './helpers.ts'
 import { mockSupabase, signInThroughDialog } from './mock-supabase.ts'
 
 // Issue #35: lasso tool. Toolbar button `tool-lasso` (aria-label 套索). Selection is read from
 // `window.__whiteboard.snapshot().selection`: { ids, bbox } or null. snapshot().tool reads 'lasso'.
 // Strokes carry colour and size in the snapshot too.
+// Issue #36: resize with corner handles (nw, ne, sw, se). Handles are drawn on the live layer, so the specs
+// find them from the selection bbox: centre = world corner -> screen, pushed 8 px outward on both axes.
 
 type Pt = { x: number; y: number }
 type Box = { minX: number; minY: number; maxX: number; maxY: number }
@@ -302,4 +304,189 @@ test('after a lasso move, sync returns to 已同步 with nothing pending', async
   await dragPen(page, aCentre, 120, 60)
   await expect(page.getByTestId('sync-status')).toContainText('已同步', { timeout: 15_000 })
   await expect.poll(async () => (await snap(page)).sync).toEqual({ status: 'synced', pending: 0 })
+})
+
+// ---- Issue #36: resize with corner handles ----
+
+/** World point -> page px, from the current camera and the board's position on the page. */
+async function toScreen(page: Page, p: Pt): Promise<Pt> {
+  const s = await snap(page)
+  const box = await boardBox(page)
+  return { x: box.x + (p.x - s.camera.x) * s.camera.zoom, y: box.y + (p.y - s.camera.y) * s.camera.zoom }
+}
+
+/** Centre of the `se` handle (outward corner of the padded box) or the `nw` handle. */
+async function handleCentre(page: Page, corner: 'se' | 'nw', box: Box): Promise<Pt> {
+  const p = corner === 'se' ? await toScreen(page, { x: box.maxX, y: box.maxY }) : await toScreen(page, { x: box.minX, y: box.minY })
+  const d = corner === 'se' ? 8 : -8
+  return { x: p.x + d, y: p.y + d }
+}
+
+test('resize: dragging the se handle by the box size doubles the stroke about its nw corner', async ({ page }) => {
+  const { a, b } = await selectA(page)
+  const zoom = (await snap(page)).camera.zoom
+  const box = (await snap(page)).selection!.bbox
+  const w = box.maxX - box.minX
+  const h = box.maxY - box.minY
+  await dragPen(page, await handleCentre(page, 'se', box), Math.round(w * zoom), Math.round(h * zoom))
+
+  const after = await snap(page)
+  expect(after.strokes.some((s) => s.id === a.id)).toBe(false)
+  expect(after.strokes).toHaveLength(2)
+  const moved = after.strokes.find((s) => s.id !== b.id)!
+  expect(moved.id).not.toBe(a.id)
+  expect(Math.abs(moved.bbox.minX - a.bbox.minX)).toBeLessThanOrEqual(0.5)
+  expect(Math.abs(moved.bbox.minY - a.bbox.minY)).toBeLessThanOrEqual(0.5)
+  expect(Math.abs(moved.bbox.maxX - moved.bbox.minX - 2 * (a.bbox.maxX - a.bbox.minX))).toBeLessThanOrEqual(1)
+  expect(Math.abs(moved.bbox.maxY - moved.bbox.minY - 2 * (a.bbox.maxY - a.bbox.minY))).toBeLessThanOrEqual(1)
+  expect(Math.abs(moved.size / a.size - 2)).toBeLessThanOrEqual(0.01)
+  expect(after.strokes.find((s) => s.id === b.id)!.points).toEqual(b.points)
+  expect(after.selection?.ids).toEqual([moved.id])
+})
+
+test('resize: dragging the nw handle halves the stroke and keeps the se corner in place', async ({ page }) => {
+  const { a, b } = await selectA(page)
+  const zoom = (await snap(page)).camera.zoom
+  const box = (await snap(page)).selection!.bbox
+  const w = box.maxX - box.minX
+  const h = box.maxY - box.minY
+  await dragPen(page, await handleCentre(page, 'nw', box), Math.round((w * zoom) / 2), Math.round((h * zoom) / 2))
+
+  const moved = (await snap(page)).strokes.find((s) => s.id !== b.id)!
+  expect(moved.id).not.toBe(a.id)
+  expect(Math.abs(moved.bbox.maxX - a.bbox.maxX)).toBeLessThanOrEqual(0.5)
+  expect(Math.abs(moved.bbox.maxY - a.bbox.maxY)).toBeLessThanOrEqual(0.5)
+  expect(Math.abs(moved.size / a.size - 0.5)).toBeLessThanOrEqual(0.01)
+})
+
+test('resize: a stroke pair scales ×2 about the union corner, so the gap between them doubles', async ({ page }) => {
+  // Drawn higher than drawTwo so the union's se handle stays clear of the bottom toolbar.
+  const c = await center(page)
+  await drawStroke(page, 'pen', [
+    { x: c.x - 40, y: c.y - 200 },
+    { x: c.x, y: c.y - 190 },
+    { x: c.x + 40, y: c.y - 200 },
+  ])
+  await expect.poll(async () => (await snap(page)).strokes.length).toBe(1)
+  await drawStroke(page, 'pen', [
+    { x: c.x - 40, y: c.y - 40 },
+    { x: c.x, y: c.y - 30 },
+    { x: c.x + 40, y: c.y - 40 },
+  ])
+  await expect.poll(async () => (await snap(page)).strokes.length).toBe(2)
+  const [a, b] = (await snap(page)).strokes as [Stroke, Stroke]
+  await page.getByTestId('tool-lasso').click()
+  await lassoLoop(page, { x: c.x, y: c.y - 115 }, 150)
+  await expect.poll(async () => [...((await snap(page)).selection?.ids ?? [])].sort()).toEqual([a.id, b.id].sort())
+  const box = (await snap(page)).selection!.bbox
+  const zoom = (await snap(page)).camera.zoom
+  await dragPen(page, await handleCentre(page, 'se', box), Math.round((box.maxX - box.minX) * zoom), Math.round((box.maxY - box.minY) * zoom))
+
+  const after = await snap(page)
+  const fresh = after.strokes.filter((s) => s.id !== a.id && s.id !== b.id).sort((p, q) => p.bbox.minY - q.bbox.minY)
+  expect(fresh).toHaveLength(2)
+  const na = fresh[0]!
+  const nb = fresh[1]!
+  const scaledY = (y: number) => box.minY + 2 * (y - box.minY)
+  const scaledX = (x: number) => box.minX + 2 * (x - box.minX)
+  expect(Math.abs(na.bbox.minY - scaledY(a.bbox.minY))).toBeLessThanOrEqual(1)
+  expect(Math.abs(nb.bbox.minY - scaledY(b.bbox.minY))).toBeLessThanOrEqual(1)
+  expect(Math.abs(na.bbox.minX - scaledX(a.bbox.minX))).toBeLessThanOrEqual(1)
+  expect(Math.abs(nb.bbox.minX - scaledX(b.bbox.minX))).toBeLessThanOrEqual(1)
+  const oldGap = b.bbox.minY - a.bbox.maxY
+  expect(Math.abs(nb.bbox.minY - na.bbox.maxY - 2 * oldGap)).toBeLessThanOrEqual(1)
+  expect(after.selection?.ids.sort()).toEqual(fresh.map((s) => s.id).sort())
+})
+
+test('resize: undo restores the original points and size; redo scales again; reload keeps it', async ({ page }) => {
+  const { a, b } = await selectA(page)
+  const zoom = (await snap(page)).camera.zoom
+  const box = (await snap(page)).selection!.bbox
+  await dragPen(page, await handleCentre(page, 'se', box), Math.round((box.maxX - box.minX) * zoom), Math.round((box.maxY - box.minY) * zoom))
+  await expect.poll(async () => (await snap(page)).selection?.ids.length ?? 0).toBe(1)
+  const scaled = (await snap(page)).strokes.find((s) => s.id !== b.id)!
+  expect(Math.abs(scaled.size / a.size - 2)).toBeLessThanOrEqual(0.01)
+
+  await page.getByTestId('undo').click()
+  const undone = await snap(page)
+  expect(undone.selection).toBeNull()
+  const restored = undone.strokes.find((s) => s.id !== b.id)!
+  expect(restored.id).not.toBe(scaled.id)
+  expect(restored.points).toEqual(a.points)
+  expect(restored.size).toBe(a.size)
+
+  await page.getByTestId('redo').click()
+  const redone = (await snap(page)).strokes.find((s) => s.id !== b.id)!
+  expect(redone.points).toEqual(scaled.points)
+  expect(redone.size).toBe(scaled.size)
+
+  await page.reload()
+  await page.waitForFunction(() => !!window.__whiteboard?.snapshot().boardId)
+  await expect.poll(async () => (await snap(page)).strokes.length).toBe(2)
+  const reloaded = (await snap(page)).strokes.find((s) => s.id === redone.id)!
+  expect(reloaded.points).toEqual(scaled.points)
+  expect(reloaded.size).toBe(scaled.size)
+})
+
+test('resize: a press 5 px inside the se corner starts a resize, not a move', async ({ page }) => {
+  const { b } = await selectA(page)
+  const box = (await snap(page)).selection!.bbox
+  const corner = await toScreen(page, { x: box.maxX, y: box.maxY })
+  await dragPen(page, { x: corner.x - 5, y: corner.y - 5 }, 40, 40)
+
+  const after = await snap(page)
+  const moved = after.strokes.find((s) => s.id !== b.id)!
+  expect(Math.abs(moved.bbox.minX - box.minX)).toBeLessThanOrEqual(0.5)
+  expect(Math.abs(moved.bbox.minY - box.minY)).toBeLessThanOrEqual(0.5)
+  expect(moved.bbox.maxX - moved.bbox.minX).toBeGreaterThan(box.maxX - box.minX + 1)
+})
+
+test('resize: a drag of zero distance on a handle changes nothing', async ({ page }) => {
+  const { a, b } = await selectA(page)
+  const box = (await snap(page)).selection!.bbox
+  const before = await snap(page)
+  await dragPen(page, await handleCentre(page, 'se', box), 0, 0)
+
+  const after = await snap(page)
+  expect(after.strokes.map((s) => s.id)).toEqual(before.strokes.map((s) => s.id))
+  expect(after.strokes.find((s) => s.id === a.id)!.points).toEqual(a.points)
+  expect(after.strokes.find((s) => s.id === b.id)!.points).toEqual(b.points)
+  expect(after.selection?.ids).toEqual([a.id])
+})
+
+test('resize: a dot has no handles, so a drag where se would be moves the dot', async ({ page }) => {
+  const c = await center(page)
+  await drawStroke(page, 'pen', [{ x: c.x, y: c.y }])
+  await expect.poll(async () => (await snap(page)).strokes.length).toBe(1)
+  const dot = (await snap(page)).strokes[0]!
+  await page.getByTestId('tool-lasso').click()
+  await lassoLoop(page, c, 60)
+  await expect.poll(async () => (await snap(page)).selection?.ids).toEqual([dot.id])
+  const zoom = (await snap(page)).camera.zoom
+
+  const corner = await toScreen(page, { x: dot.bbox.maxX, y: dot.bbox.maxY })
+  await dragPen(page, { x: corner.x + 6, y: corner.y + 6 }, 60, 0)
+
+  const after = await snap(page)
+  expect(after.strokes).toHaveLength(1)
+  const moved = after.strokes[0]!
+  expect(moved.id).not.toBe(dot.id)
+  expect(Math.abs(moved.points[0]![0] - dot.points[0]![0] - 60 / zoom)).toBeLessThanOrEqual(0.5)
+  expect(moved.size).toBe(dot.size)
+  expect(after.selection?.ids).toEqual([moved.id])
+})
+
+test('resize: with finger drawing off, a finger on the handle pans and does not resize', async ({ page }) => {
+  const { a, b } = await selectA(page)
+  const box = (await snap(page)).selection!.bbox
+  await page.waitForTimeout(PALM_WINDOW_MS + 100)
+  const before = await snap(page)
+  const handle = await handleCentre(page, 'se', box)
+  await touchDrag(page, handle, { x: handle.x + 60, y: handle.y + 30 })
+
+  const after = await snap(page)
+  expect(after.camera).not.toEqual(before.camera)
+  expect(after.strokes.find((s) => s.id === a.id)!.points).toEqual(a.points)
+  expect(after.strokes.find((s) => s.id === b.id)!.points).toEqual(b.points)
+  expect(after.selection?.ids).toEqual([a.id])
 })

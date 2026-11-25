@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test'
-import { center, pacedPenStroke, pause, pointer, snapshot, type PointerInit } from '../helpers.ts'
+import { boardBox, center, pacedPenStroke, pause, pointer, snapshot, type PointerInit } from '../helpers.ts'
 
-// Journey: draw two strokes → 套索 → circle the upper one → drag it away → 復原 puts it back.
-test('Lasso: select → move → undo', async ({ page }) => {
+// Journey: draw two strokes → 套索 → circle the upper one → drag it away → drag the se handle to double it → 復原 puts it back.
+test('Lasso: select → move → resize → undo', async ({ page }) => {
   await page.goto('/#/')
   await page.getByTestId('new-board').click()
   await expect(page.getByTestId('board-root')).toBeVisible()
@@ -49,9 +49,34 @@ test('Lasso: select → move → undo', async ({ page }) => {
   await expect.poll(async () => (await snapshot(page)).strokes.some((s) => s.id === upper!.id)).toBe(false)
   await pause(page)
 
-  // Undo: the original comes back and the selection is cleared.
+  // Drag the se handle (8 px outside the padded corner) outward by the box size, so the stroke doubles.
+  const moved = await snapshot(page)
+  const box = moved.selection!.bbox
+  const origin = await boardBox(page)
+  const toPage = (x: number, y: number) => ({ x: origin.x + (x - moved.camera.x) * moved.camera.zoom, y: origin.y + (y - moved.camera.y) * moved.camera.zoom })
+  const se = toPage(box.maxX, box.maxY)
+  const grip = { x: se.x + 8, y: se.y + 8 }
+  const dx = Math.round((box.maxX - box.minX) * moved.camera.zoom)
+  const dy = Math.round((box.maxY - box.minY) * moved.camera.zoom)
+  await pointer(page, [{ type: 'pointerdown', pointerId: 10, pointerType: 'pen', ...grip, pressure: 0.5 }])
+  for (let i = 1; i <= steps; i++) {
+    await page.waitForTimeout(30)
+    const p = { x: Math.round(grip.x + (dx * i) / steps), y: Math.round(grip.y + (dy * i) / steps) }
+    await pointer(page, [{ type: 'pointermove', pointerId: 10, pointerType: 'pen', ...p, pressure: 0.5 }])
+  }
+  await pointer(page, [{ type: 'pointerup', pointerId: 10, pointerType: 'pen', x: grip.x + dx, y: grip.y + dy, pressure: 0 }])
+  await expect.poll(async () => (await snapshot(page)).selection?.bbox.maxX).toBeGreaterThan(box.maxX + (box.maxX - box.minX) / 2)
+  await pause(page)
+
+  // Undo: the resize is taken back, leaving the moved stroke at its original size; then the selection is cleared.
   await page.getByTestId('undo').click()
   await expect.poll(async () => (await snapshot(page)).selection).toBeNull()
   await expect.poll(async () => (await snapshot(page)).strokes.length).toBe(2)
+  // The snapshot carries each stroke's size, which the shared Snapshot type does not declare. Undo gives the
+  // restored stroke a new id, so the check is by size: the original size is back and the doubled one is gone.
+  const sizeOf = (s: object) => (s as { size: number }).size
+  const sizes = (await snapshot(page)).strokes.map(sizeOf)
+  expect(sizes).toContain(sizeOf(upper!))
+  expect(sizes).not.toContain(sizeOf(upper!) * 2)
   await pause(page)
 })
