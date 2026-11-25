@@ -147,4 +147,82 @@ describe('history', () => {
     expect(a3.points).toEqual(a.points)
     expect(h.redo()).toEqual({ tombstone: [a3.id], add: [] })
   })
+
+  describe('transform (one move = one entry)', () => {
+    // `recordTransform(before: Stroke[], after: Stroke[])`: the templates before and after a move.
+    function shifted(s: Stroke, id: string, dx: number): Stroke {
+      const points = s.points.map(([x, y, p]) => [x + dx, y, p] as StrokePoint)
+      return { ...s, id, points, bbox: computeBBox(points) }
+    }
+
+    it('undo tombstones the moved copies and re-creates the before points under new ids', () => {
+      const h = createHistory()
+      const before = stroke('a')
+      const after = shifted(before, 'a2', 120)
+      h.recordTransform([before], [after])
+      expect(h.canUndo).toBe(true)
+
+      const undo = h.undo()!
+      expect(undo.tombstone).toEqual(['a2'])
+      expect(undo.add).toHaveLength(1)
+      expect(undo.add[0]!.id).not.toBe('a')
+      expect(undo.add[0]!.id).not.toBe('a2')
+      expect(undo.add[0]!.points).toEqual(before.points)
+      expect(undo.add[0]!.color).toBe(before.color)
+    })
+
+    it('redo tombstones the re-created before copies and re-creates the after points', () => {
+      const h = createHistory()
+      const before = stroke('a')
+      const after = shifted(before, 'a2', 120)
+      h.recordTransform([before], [after])
+      const restored = h.undo()!.add[0]!
+
+      const redo = h.redo()!
+      expect(redo.tombstone).toEqual([restored.id])
+      expect(redo.add).toHaveLength(1)
+      expect(redo.add[0]!.id).not.toBe('a2')
+      expect(redo.add[0]!.points).toEqual(after.points)
+    })
+
+    it('undoes and redoes a transform repeatedly, always pointing at the latest copies', () => {
+      const h = createHistory()
+      const before = stroke('a')
+      h.recordTransform([before], [shifted(before, 'a2', 120)])
+      const r1 = h.undo()!
+      expect(r1.add[0]!.points).toEqual(before.points)
+      const m1 = h.redo()!
+      expect(m1.tombstone).toEqual([r1.add[0]!.id])
+      const r2 = h.undo()!
+      expect(r2.tombstone).toEqual([m1.add[0]!.id])
+      expect(r2.add[0]!.points).toEqual(before.points)
+      const m2 = h.redo()!
+      expect(m2.tombstone).toEqual([r2.add[0]!.id])
+      expect(m2.add[0]!.points).toEqual(shifted(before, 'x', 120).points)
+    })
+
+    it('an older add entry for a moved stroke still undoes the current copy, so ids were remapped', () => {
+      const h = createHistory()
+      const a = stroke('a')
+      h.recordAdd(a)
+      h.recordTransform([a], [shifted(a, 'a2', 120)])
+
+      const restored = h.undo()!.add[0]!
+      expect(restored.id).not.toBe('a')
+      expect(h.undo()).toEqual({ tombstone: [restored.id], add: [] })
+    })
+
+    it('older entries keep following the moved copy through redo and undo of the move', () => {
+      const h = createHistory()
+      const a = stroke('a')
+      h.recordAdd(a)
+      h.recordTransform([a], [shifted(a, 'a2', 120)])
+
+      const r1 = h.undo()!.add[0]!
+      const m1 = h.redo()!.add[0]!
+      const r2 = h.undo()!.add[0]!
+      expect(new Set([a.id, r1.id, m1.id, r2.id]).size).toBe(4)
+      expect(h.undo()).toEqual({ tombstone: [r2.id], add: [] })
+    })
+  })
 })

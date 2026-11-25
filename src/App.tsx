@@ -31,6 +31,7 @@ import {
   FingerIcon,
   HighlighterIcon,
   ImportIcon,
+  LassoIcon,
   MinimapIcon,
   PenIcon,
   RedoIcon,
@@ -70,6 +71,7 @@ const TOOLS: { id: ActiveTool; label: string; icon: ReactNode }[] = [
   { id: 'pen', label: '筆', icon: <PenIcon /> },
   { id: 'highlighter', label: '螢光筆', icon: <HighlighterIcon /> },
   { id: 'eraser', label: '橡皮擦', icon: <EraserIcon /> },
+  { id: 'lasso', label: '套索', icon: <LassoIcon /> },
 ]
 
 let penSeen = false
@@ -107,6 +109,10 @@ function BoardView({ boardId, onBack }: { boardId: string; onBack: () => void })
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        engineRef.current?.clearSelection()
+        return
+      }
       if (!(e.metaKey || e.ctrlKey) || e.altKey || e.key.toLowerCase() !== 'z') return
       const t = e.target as HTMLElement | null
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
@@ -399,7 +405,10 @@ function BoardView({ boardId, onBack }: { boardId: string; onBack: () => void })
                 aria-label={t.label}
                 title={t.label}
                 data-testid={`tool-${t.id}`}
-                onClick={() => setTool(t.id)}
+                onClick={() => {
+                  setTool(t.id)
+                  engineRef.current?.clearSelection()
+                }}
               >
                 {t.icon}
               </button>
