@@ -1,0 +1,422 @@
+$ npm run lint
+exit code: 0
+stdout:
+
+> whiteboard@0.0.0 lint
+> eslint .
+
+stderr:
+npm notice
+npm notice New major version of npm available! 10.9.9 -> 12.2.3
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.3
+npm notice To update run: npm install -g npm@12.2.3
+npm notice
+$ npm run typecheck
+exit code: 0
+stdout:
+
+> whiteboard@0.0.0 typecheck
+> tsc -b
+
+stderr:
+npm notice
+npm notice New major version of npm available! 10.9.9 -> 12.2.3
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.3
+npm notice To update run: npm install -g npm@12.2.3
+npm notice
+$ npm test
+exit code: 0
+stdout:
+
+> whiteboard@0.0.0 test
+> vitest run
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.1.1 [39m[90m/workspace[39m
+
+ [32m✓[39m src/engine/pdfExport.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 114[2mms[22m[39m
+ [32m✓[39m src/scripts/journey-gif.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 293[2mms[22m[39m
+ [32m✓[39m src/storage/repository.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 132[2mms[22m[39m
+ [32m✓[39m src/boards/BoardThumbnail.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[32m 134[2mms[22m[39m
+ [32m✓[39m src/sync/memoryBackend.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 74[2mms[22m[39m
+ [32m✓[39m src/App.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[32m 265[2mms[22m[39m
+ [32m✓[39m src/storage/outbox.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 52[2mms[22m[39m
+ [32m✓[39m src/engine/engine.minimap.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 100[2mms[22m[39m
+ [32m✓[39m src/storage/pdf.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+ [32m✓[39m src/scripts/journey-gif-lib.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/sync/engine.test.ts [2m([22m[2m23 tests[22m[2m)[22m[33m 1074[2mms[22m[39m
+   [32m✓[39m outbox [2m(5)[22m
+     [33m[2m✓[22m[39m pushes oldest first in batches of at most 500 rows[33m 673[2mms[22m[39m
+ [32m✓[39m src/storage/migration.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m src/engine/camera.test.ts [2m([22m[2m35 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m src/App.auth.test.tsx [2m([22m[2m23 tests[22m[2m)[22m[33m 1578[2mms[22m[39m
+   [32m✓[39m local-only mode (no Supabase env vars) [2m(4)[22m
+     [33m[2m✓[22m[39m renders the app without a 登入 button when neither variable is set[33m 636[2mms[22m[39m
+ [32m✓[39m src/sync/supabaseBackend.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/engine/history.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/engine/pdfLayout.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/boards/thumbnailCache.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m src/scripts/e2e-helpers.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/engine/lasso.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/engine/eraser.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/engine/minimap.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/landing.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/engine/stroke.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m src/boards/thumbnail.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32m✓[39m src/pwa/pwa.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 2713[2mms[22m[39m
+ [32m✓[39m supabase/tests/schema.test.ts [2m([22m[2m78 tests[22m[2m)[22m[33m 50042[2mms[22m[39m
+   [32m✓[39m supabase migrations [2m(78)[22m
+     [32m✓[39m files [2m(2)[22m
+       [33m[2m✓[22m[39m are named <version>_<name>.sql so `supabase db push` picks them up[33m 1809[2mms[22m[39m
+       [33m[2m✓[22m[39m apply cleanly after the stub and create all four tables[33m 1066[2mms[22m[39m
+     [32m✓[39m schema [2m(22)[22m
+       [33m[2m✓[22m[39m boards has uuid id/owner_id and a non-null timestamptz synced_at[33m 613[2mms[22m[39m
+       [33m[2m✓[22m[39m strokes has uuid id/owner_id and a non-null timestamptz synced_at[33m 598[2mms[22m[39m
+       [33m[2m✓[22m[39m pdf_files has uuid id/owner_id and a non-null timestamptz synced_at[33m 584[2mms[22m[39m
+       [33m[2m✓[22m[39m pdf_pages has uuid id/owner_id and a non-null timestamptz synced_at[33m 602[2mms[22m[39m
+       [33m[2m✓[22m[39m boards mirrors the Dexie Board with bigint epoch-ms times[33m 619[2mms[22m[39m
+       [33m[2m✓[22m[39m strokes stores points as jsonb and bbox as four double precision columns[33m 582[2mms[22m[39m
+       [33m[2m✓[22m[39m pdf_files holds metadata only — no blob column[33m 593[2mms[22m[39m
+       [33m[2m✓[22m[39m pdf_pages mirrors the Dexie PdfPage in snake_case[33m 591[2mms[22m[39m
+       [33m[2m✓[22m[39m stores and returns a stroke round-trip (points jsonb, bbox, epoch ms)[33m 644[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects a duplicate client id[33m 614[2mms[22m[39m
+       [33m[2m✓[22m[39m boards defaults owner_id to auth.uid()[33m 615[2mms[22m[39m
+       [33m[2m✓[22m[39m strokes defaults owner_id to auth.uid()[33m 589[2mms[22m[39m
+       [33m[2m✓[22m[39m pdf_files defaults owner_id to auth.uid()[33m 600[2mms[22m[39m
+       [33m[2m✓[22m[39m pdf_pages defaults owner_id to auth.uid()[33m 588[2mms[22m[39m
+       [33m[2m✓[22m[39m boards.owner_id references auth.users[33m 588[2mms[22m[39m
+       [33m[2m✓[22m[39m strokes.owner_id references auth.users[33m 608[2mms[22m[39m
+       [33m[2m✓[22m[39m pdf_files.owner_id references auth.users[33m 593[2mms[22m[39m
+       [33m[2m✓[22m[39m pdf_pages.owner_id references auth.users[33m 579[2mms[22m[39m
+       [33m[2m✓[22m[39m boards has an (owner_id, synced_at) index[33m 590[2mms[22m[39m
+       [33m[2m✓[22m[39m strokes has an (owner_id, synced_at) index[33m 597[2mms[22m[39m
+       [33m[2m✓[22m[39m pdf_files has an (owner_id, synced_at) index[33m 596[2mms[22m[39m
+       [33m[2m✓[22m[39m pdf_pages has an (owner_id, synced_at) index[33m 635[2mms[22m[39m
+     [32m✓[39m row level security [2m(25)[22m
+       [33m[2m✓[22m[39m is enabled on boards[33m 639[2mms[22m[39m
+       [33m[2m✓[22m[39m is enabled on strokes[33m 631[2mms[22m[39m
+       [33m[2m✓[22m[39m is enabled on pdf_files[33m 612[2mms[22m[39m
+       [33m[2m✓[22m[39m is enabled on pdf_pages[33m 610[2mms[22m[39m
+       [33m[2m✓[22m[39m lets user A insert and select their own boards and strokes[33m 620[2mms[22m[39m
+       [33m[2m✓[22m[39m hides A’s boards rows from user B[33m 630[2mms[22m[39m
+       [33m[2m✓[22m[39m hides A’s strokes rows from user B[33m 624[2mms[22m[39m
+       [33m[2m✓[22m[39m hides A’s pdf_files rows from user B[33m 629[2mms[22m[39m
+       [33m[2m✓[22m[39m hides A’s pdf_pages rows from user B[33m 611[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects user B inserting boards with owner_id = A[33m 660[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects user B inserting strokes with owner_id = A[33m 624[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects user B inserting pdf_files with owner_id = A[33m 621[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects user B inserting pdf_pages with owner_id = A[33m 636[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects boards inserts with no signed-in user[33m 602[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects strokes inserts with no signed-in user[33m 594[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects pdf_files inserts with no signed-in user[33m 615[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects pdf_pages inserts with no signed-in user[33m 615[2mms[22m[39m
+       [33m[2m✓[22m[39m shows nothing when no user is signed in[33m 618[2mms[22m[39m
+       [33m[2m✓[22m[39m lets A update their own board[33m 622[2mms[22m[39m
+       [33m[2m✓[22m[39m does not let B update A’s board[33m 653[2mms[22m[39m
+       [33m[2m✓[22m[39m does not let A hand their board over to B[33m 608[2mms[22m[39m
+       [33m[2m✓[22m[39m has no delete policy on boards: even the owner cannot delete[33m 618[2mms[22m[39m
+       [33m[2m✓[22m[39m has no delete policy on strokes: even the owner cannot delete[33m 642[2mms[22m[39m
+       [33m[2m✓[22m[39m has no delete policy on pdf_files: even the owner cannot delete[33m 615[2mms[22m[39m
+       [33m[2m✓[22m[39m has no delete policy on pdf_pages: even the owner cannot delete[33m 610[2mms[22m[39m
+     [32m✓[39m stroke immutability [2m(15)[22m
+       [33m[2m✓[22m[39m rejects updating points[33m 653[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects updating color[33m 608[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects updating size[33m 612[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects updating tool[33m 630[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects updating bbox[33m 652[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects updating board_id[33m 757[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects updating created_at[33m 702[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects changing points together with the tombstone[33m 635[2mms[22m[39m
+       [33m[2m✓[22m[39m allows setting deleted_at once, from null to a value[33m 623[2mms[22m[39m
+       [33m[2m✓[22m[39m allows a tombstone at epoch 0[33m 619[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects setting deleted_at a second time[33m 612[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects re-setting deleted_at to the same value[33m 643[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects clearing deleted_at[33m 637[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects an update that leaves deleted_at null[33m 633[2mms[22m[39m
+       [33m[2m✓[22m[39m is enforced even for the database owner[33m 615[2mms[22m[39m
+     [32m✓[39m synced_at [2m(7)[22m
+       [33m[2m✓[22m[39m is set by the server on boards insert, ignoring a client value[33m 628[2mms[22m[39m
+       [33m[2m✓[22m[39m is set by the server on strokes insert, ignoring a client value[33m 609[2mms[22m[39m
+       [33m[2m✓[22m[39m is set by the server on pdf_files insert, ignoring a client value[33m 603[2mms[22m[39m
+       [33m[2m✓[22m[39m is set by the server on pdf_pages insert, ignoring a client value[33m 616[2mms[22m[39m
+       [33m[2m✓[22m[39m advances on insert: a later row has a later cursor[33m 668[2mms[22m[39m
+       [33m[2m✓[22m[39m advances on a stroke tombstone update[33m 672[2mms[22m[39m
+       [33m[2m✓[22m[39m advances on a board update, ignoring a client value[33m 632[2mms[22m[39m
+     [32m✓[39m storage [2m(7)[22m
+       [33m[2m✓[22m[39m creates a private pdfs bucket[33m 607[2mms[22m[39m
+       [33m[2m✓[22m[39m lets A insert and read A/<id>.pdf[33m 641[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects A inserting into B’s folder[33m 577[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects an object outside any user folder[33m 636[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects A’s folder in another bucket[33m 644[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects inserts with no signed-in user[33m 631[2mms[22m[39m
+       [33m[2m✓[22m[39m hides A’s object from B[33m 596[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m27 passed[39m[22m[90m (27)[39m
+[2m      Tests [22m [1m[32m350 passed[39m[22m[90m (350)[39m
+[2m   Start at [22m 06:17:01
+[2m   Duration [22m 50.39s[2m (tests 79%, environment 13%, setup 3%, transform 2%, import 2%)[22m
+
+stderr:
+npm notice
+npm notice New major version of npm available! 10.9.9 -> 12.2.3
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.3
+npm notice To update run: npm install -g npm@12.2.3
+npm notice
+$ npm run build
+exit code: 0
+stdout:
+
+> whiteboard@0.0.0 build
+> tsc -b && vite build
+
+vite v8.3.8 building client environment for production...
+transforming...
+✓ 272 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/registerSW.js                           0.13 kB
+dist/manifest.webmanifest                    0.41 kB
+dist/index.html                              0.81 kB │ gzip:   0.42 kB
+dist/assets/pdf.worker.min-B5Yc7dP4.mjs  1,327.59 kB
+dist/assets/index-Dg_ambA1.css              10.93 kB │ gzip:   3.02 kB
+dist/assets/pdf.worker.min-B7U8ptvh.js       0.06 kB │ gzip:   0.08 kB
+dist/assets/pdf-rELvHkft.js                500.13 kB │ gzip: 152.68 kB
+dist/assets/index-DOcoXWip.js            1,023.88 kB │ gzip: 354.20 kB
+
+✓ built in 228ms
+
+PWA v2.0.0
+mode      generateSW
+precache  21 entries (1517.08 KiB)
+files generated
+  dist/sw.js
+  dist/workbox-9c191d2f.js
+stderr:
+[plugin builtin:vite-reporter] 
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+npm notice
+npm notice New major version of npm available! 10.9.9 -> 12.2.3
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.3
+npm notice To update run: npm install -g npm@12.2.3
+npm notice
+$ CI=1 npm run e2e
+exit code: 0
+stdout:
+
+> whiteboard@0.0.0 e2e
+> playwright test && node scripts/journey-gif.mjs
+
+
+
+Running 191 tests using 5 workers
+
+[1/191] [chromium] › e2e/auth.spec.ts:99:1 › sign in with an email code, stay signed in after reload, then sign out
+[2/191] [chromium] › e2e/boards.spec.ts:40:1 › create a board, draw two strokes, reload: same strokes
+[3/191] [chromium] › e2e/boards.spec.ts:80:1 › strokes on one board do not appear on another
+[4/191] [chromium] › e2e/auth.spec.ts:130:1 › a wrong code shows a Traditional Chinese error and keeps the user signed out
+[5/191] [chromium] › e2e/boards.spec.ts:56:1 › rename and delete a board; deletion survives reload
+[6/191] [chromium] › e2e/canvas.spec.ts:28:1 › starts with no strokes and a valid camera
+[7/191] [chromium] › e2e/canvas.spec.ts:37:1 › mounts two stacked canvases in board-root sized by devicePixelRatio with touch-action none
+[8/191] [chromium] › e2e/canvas.spec.ts:71:1 › a pen stroke adds exactly one stroke with the dispatched pressures preserved
+[9/191] [chromium] › e2e/canvas.spec.ts:109:1 › two pen strokes add two strokes with distinct ids
+[10/191] [chromium] › e2e/canvas.spec.ts:124:1 › a mouse stroke draws with pressure 0.5
+[11/191] [chromium] › e2e/canvas.spec.ts:137:1 › a mouse stroke uses pressure 0.5 even when the event reports another pressure
+[12/191] [chromium] › e2e/canvas.spec.ts:149:1 › a one-finger touch drag pans the camera and adds no stroke
+[13/191] [chromium] › e2e/canvas.spec.ts:161:1 › a touch tap adds no stroke
+[14/191] [chromium] › e2e/canvas.spec.ts:171:1 › two touch pointers moving apart increase camera.zoom and add no stroke
+[15/191] [chromium] › e2e/canvas.spec.ts:193:1 › pinch zoom is anchored at the pinch midpoint
+[16/191] [chromium] › e2e/canvas.spec.ts:224:1 › a stroke drawn after panning is stored in world coordinates
+[17/191] [chromium] › e2e/canvas.spec.ts:258:1 › touch is ignored while a pen stroke is in progress
+[18/191] [chromium] › e2e/canvas.spec.ts:286:1 › the wheel pans without zooming or drawing
+[19/191] [chromium] › e2e/canvas.spec.ts:297:1 › ctrl + wheel zooms in and out, clamped to 0.1–8
+[20/191] [chromium] › e2e/canvas.spec.ts:315:1 › ctrl + wheel zoom is anchored at the cursor
+[21/191] [chromium] › e2e/landing.spec.ts:21:1 › a first visit to / opens a new board, and a stroke drawn there survives a reload
+[22/191] [chromium] › e2e/landing.spec.ts:40:1 › after opening board B from the list, / opens board B
+[23/191] [chromium] › e2e/landing.spec.ts:66:1 › after deleting the last opened board, / shows the board list
+[24/191] [chromium] › e2e/landing.spec.ts:82:1 › 「‹ 白板列表」 goes back to the list
+[25/191] [chromium] › e2e/lasso.spec.ts:99:1 › a pen loop around a stroke selects only that stroke, with its bbox
+[26/191] [chromium] › e2e/lasso.spec.ts:111:1 › a new loop outside the selection box replaces the selection
+[27/191] [chromium] › e2e/lasso.spec.ts:119:1 › dragging the selection moves the stroke by the pointer delta; the other stroke is untouched
+[28/191] [chromium] › e2e/lasso.spec.ts:143:1 › the moved stroke survives a reload; the selection does not
+[29/191] [chromium] › e2e/lasso.spec.ts:160:1 › undo puts the original stroke back and clears the selection; redo moves it again
+[30/191] [chromium] › e2e/lasso.spec.ts:179:1 › zoomed to 2×, a 100 px drag of the selection moves it 50 world px
+[31/191] [chromium] › e2e/lasso.spec.ts:195:1 › a pen tap outside the selection box clears the selection and draws nothing
+[32/191] [chromium] › e2e/lasso.spec.ts:203:1 › Escape clears the selection
+[33/191] [chromium] › e2e/lasso.spec.ts:209:1 › tapping a tool button clears the selection
+[34/191] [chromium] › e2e/lasso.spec.ts:215:1 › colour and size buttons leave the selection and the strokes alone
+[35/191] [chromium] › e2e/lasso.spec.ts:225:1 › a loop around empty paper selects nothing and changes no stroke
+[36/191] [chromium] › e2e/lasso.spec.ts:234:1 › a stroke on a PDF page can be lassoed and moved; the pages do not move
+[37/191] [chromium] › e2e/lasso.spec.ts:260:1 › finger drawing off: one finger pans inside the selection, a pinch zooms, the selection stays
+[38/191] [chromium] › e2e/lasso.spec.ts:277:1 › finger drawing on: a one-finger loop selects, but a palm touch right after a pen event does not
+[39/191] [chromium] › e2e/lasso.spec.ts:293:1 › after a lasso move, sync returns to 已同步 with nothing pending
+[40/191] [chromium] › e2e/minimap.spec.ts:41:1 › toggle: off by default, opens, survives reload, closes
+[41/191] [chromium] › e2e/minimap.spec.ts:65:1 › snapshot.viewport is the world rectangle on screen
+[42/191] [chromium] › e2e/minimap.spec.ts:75:1 › jump: tap the stroke on the minimap and the camera comes back to it
+[43/191] [chromium] › e2e/minimap.spec.ts:111:1 › drag: a touch drag on the minimap moves the camera steadily and adds no stroke
+[44/191] [chromium] › e2e/minimap.spec.ts:134:1 › no ink: a pen stroke on the minimap adds no stroke
+[45/191] [chromium] › e2e/minimap.spec.ts:160:3 › layout: minimap clears the toolbar and chrome at phone 390 × 844
+[46/191] [chromium] › e2e/minimap.spec.ts:160:3 › layout: minimap clears the toolbar and chrome at iPad Pro 11 portrait 834 × 1194
+[47/191] [chromium] › e2e/minimap.spec.ts:160:3 › layout: minimap clears the toolbar and chrome at iPad Pro 11 landscape 1194 × 834
+[48/191] [chromium] › e2e/minimap.spec.ts:180:1 › missing board: no minimap toggle or panel
+[49/191] [chromium] › e2e/palm.spec.ts:37:1 › off: a touch right after the pen lifts is a palm and does not pan
+[50/191] [chromium] › e2e/palm.spec.ts:48:1 › off: a touch after the palm window pans by the full distance
+[51/191] [chromium] › e2e/palm.spec.ts:66:1 › off: a hovering pen makes the next touch a palm
+[52/191] [chromium] › e2e/palm.spec.ts:82:1 › off: a resting palm that moves less than 8 px does not pan
+[53/191] [chromium] › e2e/palm.spec.ts:94:1 › on: a finger right after the pen draws nothing, a later finger draws
+[54/191] [chromium] › e2e/pdf-eraser.spec.ts:20:1 › eraser dragged over a page with no strokes leaves the page intact
+[55/191] [chromium] › e2e/pdf-eraser.spec.ts:38:1 › eraser removes a stroke drawn over a page but keeps the page
+[56/191] [chromium] › e2e/pdf-export.spec.ts:17:1 › export menu is absent on a board without PDFs
+[57/191] [chromium] › e2e/pdf-export.spec.ts:21:1 › exporting the imported PDF downloads two-pages-annotated.pdf
+[58/191] [chromium] › e2e/pdf.spec.ts:22:1 › import adds A4 and Letter pages stacked with a 24px gap, both rendered
+[59/191] [chromium] › e2e/pdf.spec.ts:41:1 › pen stroke over page 1 and the pages survive a reload
+[60/191] [chromium] › e2e/pdf.spec.ts:64:1 › one-finger touch drag over a page pans the camera and does not draw or move the page
+[61/191] [chromium] › e2e/pwa.spec.ts:3:1 › page links manifest and apple-touch-icon
+[62/191] [chromium] › e2e/pwa.spec.ts:9:1 › app shell renders offline after the service worker activates
+[63/191] [chromium] › e2e/selection.spec.ts:15:1 › the board screen and its canvas cannot be selected
+[64/191] [chromium] › e2e/selection.spec.ts:32:1 › touchstart and selectstart on the canvas are cancelled
+[65/191] [chromium] › e2e/smoke.spec.ts:3:1 › app shell loads: the board list at #/ and a board at /
+[66/191] [chromium] › e2e/selection.spec.ts:45:1 › double-clicking the board title selects no text
+[67/191] [chromium] › e2e/sync.spec.ts:5:1 › after signing in and drawing, sync reaches 已同步 with nothing pending
+[68/191] [chromium] › e2e/thumbnails.spec.ts:42:1 › a thumbnail below the fold stays pending until it is scrolled near
+[69/191] [chromium] › e2e/thumbnails.spec.ts:66:1 › a card reopened unchanged is drawn from memory, a changed one from storage
+[70/191] [chromium] › e2e/thumbnails.spec.ts:90:1 › erasing a stroke moves the board to the top and redraws its thumbnail
+[71/191] [chromium] › e2e/tools.spec.ts:63:1 › eraser removes only the crossed stroke, also after reload
+[72/191] [chromium] › e2e/tools.spec.ts:81:1 › undo after an erase restores the same points with a new id; redo removes it again
+[73/191] [chromium] › e2e/tools.spec.ts:99:1 › undoing the draw after undoing an erase removes the restored copy
+[74/191] [chromium] › e2e/tools.spec.ts:110:1 › keyboard shortcuts undo and redo
+[75/191] [chromium] › e2e/tools.spec.ts:125:1 › highlighter stroke is stored with its tool and chosen colour
+[76/191] [chromium] › e2e/tools.spec.ts:137:1 › a touch drag with the eraser selected erases nothing
+[77/191] [chromium] › e2e/tools.spec.ts:145:1 › an erase interrupted by pointercancel can still be undone
+[78/191] [chromium] › e2e/finger-draw.spec.ts:27:1 › first visit: finger drawing is on, toggle reflects it
+[79/191] [chromium] › e2e/finger-draw.spec.ts:33:1 › a pen stroke turns finger drawing off and it stays off after reload
+[80/191] [chromium] › e2e/finger-draw.spec.ts:48:1 › a mouse stroke does not turn finger drawing off
+[81/191] [chromium] › e2e/finger-draw.spec.ts:58:1 › the user can turn it back on after a pen turned it off; the choice persists
+[82/191] [chromium] › e2e/finger-draw.spec.ts:80:1 › a broken localStorage is ignored
+[83/191] [chromium] › e2e/finger-draw.spec.ts:95:1 › on: a one-finger drag adds exactly one stroke and does not pan
+[84/191] [chromium] › e2e/finger-draw.spec.ts:71:1 › a stored setting survives reload and is not overridden
+[85/191] [chromium] › e2e/finger-draw.spec.ts:107:1 › on: a finger draws with the highlighter
+[86/191] [chromium] › e2e/finger-draw.spec.ts:115:1 › on: a finger with the eraser erases a stroke
+[87/191] [chromium] › e2e/finger-draw.spec.ts:125:1 › on: two fingers moving apart zoom in and add no stroke
+[88/191] [chromium] › e2e/finger-draw.spec.ts:134:1 › on: a second finger during a finger stroke discards it, nothing is saved
+[89/191] [chromium] › e2e/finger-draw.spec.ts:170:1 › off: two fingers still pinch-zoom
+[90/191] [chromium] › e2e/finger-draw.spec.ts:179:1 › on: touch is still ignored while a pen stroke is in progress
+[91/191] [chromium] › e2e/finger-draw.spec.ts:194:1 › on: a second finger during a finger eraser gesture restores erased strokes, also after reload
+[92/191] [chromium] › e2e/finger-draw.spec.ts:159:1 › off: a one-finger drag pans and adds no stroke
+[93/191] [webkit-ipad] › e2e/auth.spec.ts:130:1 › a wrong code shows a Traditional Chinese error and keeps the user signed out
+[94/191] [webkit-ipad] › e2e/auth.spec.ts:99:1 › sign in with an email code, stay signed in after reload, then sign out
+[95/191] [webkit-ipad] › e2e/boards.spec.ts:40:1 › create a board, draw two strokes, reload: same strokes
+[96/191] [webkit-ipad] › e2e/boards.spec.ts:56:1 › rename and delete a board; deletion survives reload
+[97/191] [webkit-ipad] › e2e/boards.spec.ts:80:1 › strokes on one board do not appear on another
+[98/191] [webkit-ipad] › e2e/canvas.spec.ts:28:1 › starts with no strokes and a valid camera
+[99/191] [webkit-ipad] › e2e/canvas.spec.ts:37:1 › mounts two stacked canvases in board-root sized by devicePixelRatio with touch-action none
+[100/191] [webkit-ipad] › e2e/canvas.spec.ts:71:1 › a pen stroke adds exactly one stroke with the dispatched pressures preserved
+[101/191] [webkit-ipad] › e2e/canvas.spec.ts:109:1 › two pen strokes add two strokes with distinct ids
+[102/191] [webkit-ipad] › e2e/canvas.spec.ts:124:1 › a mouse stroke draws with pressure 0.5
+[103/191] [webkit-ipad] › e2e/canvas.spec.ts:137:1 › a mouse stroke uses pressure 0.5 even when the event reports another pressure
+[104/191] [webkit-ipad] › e2e/canvas.spec.ts:149:1 › a one-finger touch drag pans the camera and adds no stroke
+[105/191] [webkit-ipad] › e2e/canvas.spec.ts:161:1 › a touch tap adds no stroke
+[106/191] [webkit-ipad] › e2e/canvas.spec.ts:171:1 › two touch pointers moving apart increase camera.zoom and add no stroke
+[107/191] [webkit-ipad] › e2e/canvas.spec.ts:193:1 › pinch zoom is anchored at the pinch midpoint
+[108/191] [webkit-ipad] › e2e/canvas.spec.ts:224:1 › a stroke drawn after panning is stored in world coordinates
+[109/191] [webkit-ipad] › e2e/canvas.spec.ts:258:1 › touch is ignored while a pen stroke is in progress
+[110/191] [webkit-ipad] › e2e/canvas.spec.ts:286:1 › the wheel pans without zooming or drawing
+[111/191] [webkit-ipad] › e2e/canvas.spec.ts:297:1 › ctrl + wheel zooms in and out, clamped to 0.1–8
+[112/191] [webkit-ipad] › e2e/canvas.spec.ts:315:1 › ctrl + wheel zoom is anchored at the cursor
+[113/191] [webkit-ipad] › e2e/landing.spec.ts:21:1 › a first visit to / opens a new board, and a stroke drawn there survives a reload
+[114/191] [webkit-ipad] › e2e/landing.spec.ts:40:1 › after opening board B from the list, / opens board B
+[115/191] [webkit-ipad] › e2e/landing.spec.ts:66:1 › after deleting the last opened board, / shows the board list
+[116/191] [webkit-ipad] › e2e/landing.spec.ts:82:1 › 「‹ 白板列表」 goes back to the list
+[117/191] [webkit-ipad] › e2e/lasso.spec.ts:99:1 › a pen loop around a stroke selects only that stroke, with its bbox
+[118/191] [webkit-ipad] › e2e/lasso.spec.ts:111:1 › a new loop outside the selection box replaces the selection
+[119/191] [webkit-ipad] › e2e/lasso.spec.ts:119:1 › dragging the selection moves the stroke by the pointer delta; the other stroke is untouched
+[120/191] [webkit-ipad] › e2e/lasso.spec.ts:143:1 › the moved stroke survives a reload; the selection does not
+[121/191] [webkit-ipad] › e2e/lasso.spec.ts:160:1 › undo puts the original stroke back and clears the selection; redo moves it again
+[122/191] [webkit-ipad] › e2e/lasso.spec.ts:179:1 › zoomed to 2×, a 100 px drag of the selection moves it 50 world px
+[123/191] [webkit-ipad] › e2e/lasso.spec.ts:195:1 › a pen tap outside the selection box clears the selection and draws nothing
+[124/191] [webkit-ipad] › e2e/lasso.spec.ts:203:1 › Escape clears the selection
+[125/191] [webkit-ipad] › e2e/lasso.spec.ts:209:1 › tapping a tool button clears the selection
+[126/191] [webkit-ipad] › e2e/lasso.spec.ts:215:1 › colour and size buttons leave the selection and the strokes alone
+[127/191] [webkit-ipad] › e2e/lasso.spec.ts:225:1 › a loop around empty paper selects nothing and changes no stroke
+[128/191] [webkit-ipad] › e2e/lasso.spec.ts:234:1 › a stroke on a PDF page can be lassoed and moved; the pages do not move
+[129/191] [webkit-ipad] › e2e/lasso.spec.ts:260:1 › finger drawing off: one finger pans inside the selection, a pinch zooms, the selection stays
+[130/191] [webkit-ipad] › e2e/lasso.spec.ts:277:1 › finger drawing on: a one-finger loop selects, but a palm touch right after a pen event does not
+[131/191] [webkit-ipad] › e2e/lasso.spec.ts:293:1 › after a lasso move, sync returns to 已同步 with nothing pending
+[132/191] [webkit-ipad] › e2e/minimap.spec.ts:41:1 › toggle: off by default, opens, survives reload, closes
+[133/191] [webkit-ipad] › e2e/minimap.spec.ts:65:1 › snapshot.viewport is the world rectangle on screen
+[134/191] [webkit-ipad] › e2e/minimap.spec.ts:75:1 › jump: tap the stroke on the minimap and the camera comes back to it
+[135/191] [webkit-ipad] › e2e/minimap.spec.ts:111:1 › drag: a touch drag on the minimap moves the camera steadily and adds no stroke
+[136/191] [webkit-ipad] › e2e/minimap.spec.ts:134:1 › no ink: a pen stroke on the minimap adds no stroke
+[137/191] [webkit-ipad] › e2e/minimap.spec.ts:160:3 › layout: minimap clears the toolbar and chrome at phone 390 × 844
+[138/191] [webkit-ipad] › e2e/minimap.spec.ts:160:3 › layout: minimap clears the toolbar and chrome at iPad Pro 11 portrait 834 × 1194
+[139/191] [webkit-ipad] › e2e/minimap.spec.ts:160:3 › layout: minimap clears the toolbar and chrome at iPad Pro 11 landscape 1194 × 834
+[140/191] [webkit-ipad] › e2e/minimap.spec.ts:180:1 › missing board: no minimap toggle or panel
+[141/191] [webkit-ipad] › e2e/palm.spec.ts:37:1 › off: a touch right after the pen lifts is a palm and does not pan
+[142/191] [webkit-ipad] › e2e/palm.spec.ts:48:1 › off: a touch after the palm window pans by the full distance
+[143/191] [webkit-ipad] › e2e/palm.spec.ts:66:1 › off: a hovering pen makes the next touch a palm
+[144/191] [webkit-ipad] › e2e/palm.spec.ts:82:1 › off: a resting palm that moves less than 8 px does not pan
+[145/191] [webkit-ipad] › e2e/palm.spec.ts:94:1 › on: a finger right after the pen draws nothing, a later finger draws
+[146/191] [webkit-ipad] › e2e/pdf-eraser.spec.ts:20:1 › eraser dragged over a page with no strokes leaves the page intact
+[147/191] [webkit-ipad] › e2e/pdf-eraser.spec.ts:38:1 › eraser removes a stroke drawn over a page but keeps the page
+[148/191] [webkit-ipad] › e2e/pdf-export.spec.ts:17:1 › export menu is absent on a board without PDFs
+[149/191] [webkit-ipad] › e2e/pdf-export.spec.ts:21:1 › exporting the imported PDF downloads two-pages-annotated.pdf
+[150/191] [webkit-ipad] › e2e/pdf.spec.ts:22:1 › import adds A4 and Letter pages stacked with a 24px gap, both rendered
+[151/191] [webkit-ipad] › e2e/pdf.spec.ts:41:1 › pen stroke over page 1 and the pages survive a reload
+[152/191] [webkit-ipad] › e2e/pdf.spec.ts:64:1 › one-finger touch drag over a page pans the camera and does not draw or move the page
+[153/191] [webkit-ipad] › e2e/pwa.spec.ts:3:1 › page links manifest and apple-touch-icon
+[154/191] [webkit-ipad] › e2e/pwa.spec.ts:9:1 › app shell renders offline after the service worker activates
+[155/191] [webkit-ipad] › e2e/selection.spec.ts:15:1 › the board screen and its canvas cannot be selected
+[156/191] [webkit-ipad] › e2e/selection.spec.ts:32:1 › touchstart and selectstart on the canvas are cancelled
+[157/191] [webkit-ipad] › e2e/selection.spec.ts:45:1 › double-clicking the board title selects no text
+[158/191] [webkit-ipad] › e2e/smoke.spec.ts:3:1 › app shell loads: the board list at #/ and a board at /
+[159/191] [webkit-ipad] › e2e/sync.spec.ts:5:1 › after signing in and drawing, sync reaches 已同步 with nothing pending
+[160/191] [webkit-ipad] › e2e/thumbnails.spec.ts:42:1 › a thumbnail below the fold stays pending until it is scrolled near
+[161/191] [webkit-ipad] › e2e/thumbnails.spec.ts:66:1 › a card reopened unchanged is drawn from memory, a changed one from storage
+[162/191] [webkit-ipad] › e2e/thumbnails.spec.ts:90:1 › erasing a stroke moves the board to the top and redraws its thumbnail
+[163/191] [webkit-ipad] › e2e/tools.spec.ts:63:1 › eraser removes only the crossed stroke, also after reload
+[164/191] [webkit-ipad] › e2e/tools.spec.ts:81:1 › undo after an erase restores the same points with a new id; redo removes it again
+[165/191] [webkit-ipad] › e2e/tools.spec.ts:99:1 › undoing the draw after undoing an erase removes the restored copy
+[166/191] [webkit-ipad] › e2e/tools.spec.ts:110:1 › keyboard shortcuts undo and redo
+[167/191] [webkit-ipad] › e2e/tools.spec.ts:125:1 › highlighter stroke is stored with its tool and chosen colour
+[168/191] [webkit-ipad] › e2e/tools.spec.ts:137:1 › a touch drag with the eraser selected erases nothing
+[169/191] [webkit-ipad] › e2e/tools.spec.ts:145:1 › an erase interrupted by pointercancel can still be undone
+[170/191] [webkit-ipad] › e2e/finger-draw.spec.ts:27:1 › first visit: finger drawing is on, toggle reflects it
+[171/191] [webkit-ipad] › e2e/finger-draw.spec.ts:33:1 › a pen stroke turns finger drawing off and it stays off after reload
+[172/191] [webkit-ipad] › e2e/finger-draw.spec.ts:58:1 › the user can turn it back on after a pen turned it off; the choice persists
+[173/191] [webkit-ipad] › e2e/finger-draw.spec.ts:48:1 › a mouse stroke does not turn finger drawing off
+[174/191] [webkit-ipad] › e2e/finger-draw.spec.ts:71:1 › a stored setting survives reload and is not overridden
+[175/191] [webkit-ipad] › e2e/finger-draw.spec.ts:80:1 › a broken localStorage is ignored
+[176/191] [webkit-ipad] › e2e/finger-draw.spec.ts:95:1 › on: a one-finger drag adds exactly one stroke and does not pan
+[177/191] [webkit-ipad] › e2e/finger-draw.spec.ts:107:1 › on: a finger draws with the highlighter
+[178/191] [webkit-ipad] › e2e/finger-draw.spec.ts:115:1 › on: a finger with the eraser erases a stroke
+[179/191] [webkit-ipad] › e2e/finger-draw.spec.ts:125:1 › on: two fingers moving apart zoom in and add no stroke
+[180/191] [webkit-ipad] › e2e/finger-draw.spec.ts:134:1 › on: a second finger during a finger stroke discards it, nothing is saved
+[181/191] [webkit-ipad] › e2e/finger-draw.spec.ts:159:1 › off: a one-finger drag pans and adds no stroke
+[182/191] [webkit-ipad] › e2e/finger-draw.spec.ts:170:1 › off: two fingers still pinch-zoom
+[183/191] [webkit-ipad] › e2e/finger-draw.spec.ts:179:1 › on: touch is still ignored while a pen stroke is in progress
+[184/191] [journey] › e2e/journeys/board.journey.ts:5:1 › Board: draw → pan → zoom → reload → rename
+[185/191] [webkit-ipad] › e2e/finger-draw.spec.ts:194:1 › on: a second finger during a finger eraser gesture restores erased strokes, also after reload
+[186/191] [journey] › e2e/journeys/finger-draw.journey.ts:5:1 › Finger drawing: turn on → draw → pinch-zoom
+[187/191] [journey] › e2e/journeys/lasso.journey.ts:5:1 › Lasso: select → move → undo
+[188/191] [journey] › e2e/journeys/minimap.journey.ts:5:1 › Minimap: open → tap → jump there
+[189/191] [journey] › e2e/journeys/palm.journey.ts:6:1 › Palm: write with a palm down → no pan
+[190/191] [journey] › e2e/journeys/pdf.journey.ts:5:1 › PDF: import → annotate → reload → erase → pan
+[191/191] [journey] › e2e/journeys/sync.journey.ts:6:1 › Sync: draw signed out → sign in → synced
+  1 skipped
+  190 passed (1.4m)
+wrote /workspace/test-results/journeys-board.journey.ts--ec442-an-→-zoom-→-reload-→-rename-journey/journey.gif
+wrote /workspace/test-results/journeys-finger-draw.journ-6f9c0-turn-on-→-draw-→-pinch-zoom-journey/journey.gif
+wrote /workspace/test-results/journeys-lasso.journey.ts-Lasso-select-→-move-→-undo-journey/journey.gif
+wrote /workspace/test-results/journeys-minimap.journey.ts-Minimap-open-→-tap-→-jump-there-journey/journey.gif
+wrote /workspace/test-results/journeys-palm.journey.ts-P-c6dfa-e-with-a-palm-down-→-no-pan-journey/journey.gif
+wrote /workspace/test-results/journeys-pdf.journey.ts-PD-0b941-tate-→-reload-→-erase-→-pan-journey/journey.gif
+wrote /workspace/test-results/journeys-sync.journey.ts-S-e77f7-gned-out-→-sign-in-→-synced-journey/journey.gif
+stderr:
+[WebServer] [plugin builtin:vite-reporter] 
+[WebServer] (!) Some chunks are larger than 500 kB after minification. Consider:
+[WebServer] - Using dynamic import() to code-split the application
+[WebServer] - Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+[WebServer] - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+Reports: evidence 14 in verify-1-reports/.
