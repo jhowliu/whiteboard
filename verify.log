@@ -1,0 +1,679 @@
+$ npm run lint
+exit code: 0
+stdout:
+
+> whiteboard@0.0.0 lint
+> eslint .
+
+stderr:
+npm notice
+npm notice New major version of npm available! 10.9.9 -> 12.2.3
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.3
+npm notice To update run: npm install -g npm@12.2.3
+npm notice
+$ npm run typecheck
+exit code: 0
+stdout:
+
+> whiteboard@0.0.0 typecheck
+> tsc -b
+
+stderr:
+npm notice
+npm notice New major version of npm available! 10.9.9 -> 12.2.3
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.3
+npm notice To update run: npm install -g npm@12.2.3
+npm notice
+$ npm test
+exit code: 0
+stdout:
+
+> whiteboard@0.0.0 test
+> vitest run
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.1.1 [39m[90m/workspace[39m
+
+ [32m✓[39m src/engine/pdfExport.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 68[2mms[22m[39m
+ [32m✓[39m src/scripts/journey-gif.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 304[2mms[22m[39m
+ [32m✓[39m src/storage/outbox.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 43[2mms[22m[39m
+ [32m✓[39m src/storage/repository.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 136[2mms[22m[39m
+ [32m✓[39m src/App.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[32m 175[2mms[22m[39m
+ [32m✓[39m src/sync/memoryBackend.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 44[2mms[22m[39m
+ [32m✓[39m src/engine/minimap.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 54[2mms[22m[39m
+ [32m✓[39m src/engine/camera.test.ts [2m([22m[2m35 tests[22m[2m)[22m[32m 30[2mms[22m[39m
+ [32m✓[39m src/storage/pdf.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 45[2mms[22m[39m
+ [32m✓[39m src/sync/engine.test.ts [2m([22m[2m23 tests[22m[2m)[22m[33m 1036[2mms[22m[39m
+   [32m✓[39m outbox [2m(5)[22m
+     [33m[2m✓[22m[39m pushes oldest first in batches of at most 500 rows[33m 648[2mms[22m[39m
+ [32m✓[39m src/App.auth.test.tsx [2m([22m[2m23 tests[22m[2m)[22m[33m 1195[2mms[22m[39m
+   [32m✓[39m local-only mode (no Supabase env vars) [2m(4)[22m
+     [33m[2m✓[22m[39m renders the app without a 登入 button when neither variable is set[33m 356[2mms[22m[39m
+ [32m✓[39m src/scripts/journey-gif-lib.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/storage/migration.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m src/sync/supabaseBackend.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/engine/pdfLayout.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+ [32m✓[39m src/scripts/e2e-helpers.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/engine/history.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/engine/eraser.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/engine/stroke.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/boards/thumbnail.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m src/landing.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/pwa/pwa.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 2345[2mms[22m[39m
+ [32m✓[39m supabase/tests/schema.test.ts [2m([22m[2m78 tests[22m[2m)[22m[33m 47538[2mms[22m[39m
+   [32m✓[39m supabase migrations [2m(78)[22m
+     [32m✓[39m files [2m(2)[22m
+       [33m[2m✓[22m[39m are named <version>_<name>.sql so `supabase db push` picks them up[33m 2040[2mms[22m[39m
+       [33m[2m✓[22m[39m apply cleanly after the stub and create all four tables[33m 773[2mms[22m[39m
+     [32m✓[39m schema [2m(22)[22m
+       [33m[2m✓[22m[39m boards has uuid id/owner_id and a non-null timestamptz synced_at[33m 623[2mms[22m[39m
+       [33m[2m✓[22m[39m strokes has uuid id/owner_id and a non-null timestamptz synced_at[33m 609[2mms[22m[39m
+       [33m[2m✓[22m[39m pdf_files has uuid id/owner_id and a non-null timestamptz synced_at[33m 603[2mms[22m[39m
+       [33m[2m✓[22m[39m pdf_pages has uuid id/owner_id and a non-null timestamptz synced_at[33m 578[2mms[22m[39m
+       [33m[2m✓[22m[39m boards mirrors the Dexie Board with bigint epoch-ms times[33m 584[2mms[22m[39m
+       [33m[2m✓[22m[39m strokes stores points as jsonb and bbox as four double precision columns[33m 571[2mms[22m[39m
+       [33m[2m✓[22m[39m pdf_files holds metadata only — no blob column[33m 591[2mms[22m[39m
+       [33m[2m✓[22m[39m pdf_pages mirrors the Dexie PdfPage in snake_case[33m 578[2mms[22m[39m
+       [33m[2m✓[22m[39m stores and returns a stroke round-trip (points jsonb, bbox, epoch ms)[33m 591[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects a duplicate client id[33m 578[2mms[22m[39m
+       [33m[2m✓[22m[39m boards defaults owner_id to auth.uid()[33m 588[2mms[22m[39m
+       [33m[2m✓[22m[39m strokes defaults owner_id to auth.uid()[33m 559[2mms[22m[39m
+       [33m[2m✓[22m[39m pdf_files defaults owner_id to auth.uid()[33m 563[2mms[22m[39m
+       [33m[2m✓[22m[39m pdf_pages defaults owner_id to auth.uid()[33m 595[2mms[22m[39m
+       [33m[2m✓[22m[39m boards.owner_id references auth.users[33m 574[2mms[22m[39m
+       [33m[2m✓[22m[39m strokes.owner_id references auth.users[33m 576[2mms[22m[39m
+       [33m[2m✓[22m[39m pdf_files.owner_id references auth.users[33m 599[2mms[22m[39m
+       [33m[2m✓[22m[39m pdf_pages.owner_id references auth.users[33m 572[2mms[22m[39m
+       [33m[2m✓[22m[39m boards has an (owner_id, synced_at) index[33m 591[2mms[22m[39m
+       [33m[2m✓[22m[39m strokes has an (owner_id, synced_at) index[33m 666[2mms[22m[39m
+       [33m[2m✓[22m[39m pdf_files has an (owner_id, synced_at) index[33m 626[2mms[22m[39m
+       [33m[2m✓[22m[39m pdf_pages has an (owner_id, synced_at) index[33m 597[2mms[22m[39m
+     [32m✓[39m row level security [2m(25)[22m
+       [33m[2m✓[22m[39m is enabled on boards[33m 588[2mms[22m[39m
+       [33m[2m✓[22m[39m is enabled on strokes[33m 586[2mms[22m[39m
+       [33m[2m✓[22m[39m is enabled on pdf_files[33m 588[2mms[22m[39m
+       [33m[2m✓[22m[39m is enabled on pdf_pages[33m 576[2mms[22m[39m
+       [33m[2m✓[22m[39m lets user A insert and select their own boards and strokes[33m 599[2mms[22m[39m
+       [33m[2m✓[22m[39m hides A’s boards rows from user B[33m 580[2mms[22m[39m
+       [33m[2m✓[22m[39m hides A’s strokes rows from user B[33m 578[2mms[22m[39m
+       [33m[2m✓[22m[39m hides A’s pdf_files rows from user B[33m 580[2mms[22m[39m
+       [33m[2m✓[22m[39m hides A’s pdf_pages rows from user B[33m 589[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects user B inserting boards with owner_id = A[33m 586[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects user B inserting strokes with owner_id = A[33m 594[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects user B inserting pdf_files with owner_id = A[33m 588[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects user B inserting pdf_pages with owner_id = A[33m 582[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects boards inserts with no signed-in user[33m 569[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects strokes inserts with no signed-in user[33m 577[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects pdf_files inserts with no signed-in user[33m 579[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects pdf_pages inserts with no signed-in user[33m 576[2mms[22m[39m
+       [33m[2m✓[22m[39m shows nothing when no user is signed in[33m 564[2mms[22m[39m
+       [33m[2m✓[22m[39m lets A update their own board[33m 573[2mms[22m[39m
+       [33m[2m✓[22m[39m does not let B update A’s board[33m 580[2mms[22m[39m
+       [33m[2m✓[22m[39m does not let A hand their board over to B[33m 569[2mms[22m[39m
+       [33m[2m✓[22m[39m has no delete policy on boards: even the owner cannot delete[33m 590[2mms[22m[39m
+       [33m[2m✓[22m[39m has no delete policy on strokes: even the owner cannot delete[33m 604[2mms[22m[39m
+       [33m[2m✓[22m[39m has no delete policy on pdf_files: even the owner cannot delete[33m 586[2mms[22m[39m
+       [33m[2m✓[22m[39m has no delete policy on pdf_pages: even the owner cannot delete[33m 576[2mms[22m[39m
+     [32m✓[39m stroke immutability [2m(15)[22m
+       [33m[2m✓[22m[39m rejects updating points[33m 602[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects updating color[33m 576[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects updating size[33m 608[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects updating tool[33m 585[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects updating bbox[33m 581[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects updating board_id[33m 576[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects updating created_at[33m 596[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects changing points together with the tombstone[33m 604[2mms[22m[39m
+       [33m[2m✓[22m[39m allows setting deleted_at once, from null to a value[33m 586[2mms[22m[39m
+       [33m[2m✓[22m[39m allows a tombstone at epoch 0[33m 615[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects setting deleted_at a second time[33m 605[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects re-setting deleted_at to the same value[33m 601[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects clearing deleted_at[33m 578[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects an update that leaves deleted_at null[33m 576[2mms[22m[39m
+       [33m[2m✓[22m[39m is enforced even for the database owner[33m 576[2mms[22m[39m
+     [32m✓[39m synced_at [2m(7)[22m
+       [33m[2m✓[22m[39m is set by the server on boards insert, ignoring a client value[33m 582[2mms[22m[39m
+       [33m[2m✓[22m[39m is set by the server on strokes insert, ignoring a client value[33m 570[2mms[22m[39m
+       [33m[2m✓[22m[39m is set by the server on pdf_files insert, ignoring a client value[33m 587[2mms[22m[39m
+       [33m[2m✓[22m[39m is set by the server on pdf_pages insert, ignoring a client value[33m 589[2mms[22m[39m
+       [33m[2m✓[22m[39m advances on insert: a later row has a later cursor[33m 606[2mms[22m[39m
+       [33m[2m✓[22m[39m advances on a stroke tombstone update[33m 619[2mms[22m[39m
+       [33m[2m✓[22m[39m advances on a board update, ignoring a client value[33m 625[2mms[22m[39m
+     [32m✓[39m storage [2m(7)[22m
+       [33m[2m✓[22m[39m creates a private pdfs bucket[33m 593[2mms[22m[39m
+       [33m[2m✓[22m[39m lets A insert and read A/<id>.pdf[33m 564[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects A inserting into B’s folder[33m 594[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects an object outside any user folder[33m 605[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects A’s folder in another bucket[33m 573[2mms[22m[39m
+       [33m[2m✓[22m[39m rejects inserts with no signed-in user[33m 597[2mms[22m[39m
+       [33m[2m✓[22m[39m hides A’s object from B[33m 586[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m23 passed[39m[22m[90m (23)[39m
+[2m      Tests [22m [1m[32m301 passed[39m[22m[90m (301)[39m
+[2m   Start at [22m 03:34:21
+[2m   Duration [22m 47.80s[2m (tests 81%, environment 13%, setup 3%, import 2%, transform 1%)[22m
+
+stderr:
+npm notice
+npm notice New major version of npm available! 10.9.9 -> 12.2.3
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.3
+npm notice To update run: npm install -g npm@12.2.3
+npm notice
+$ npm run build
+exit code: 0
+stdout:
+
+> whiteboard@0.0.0 build
+> tsc -b && vite build
+
+vite v8.3.8 building client environment for production...
+transforming...
+✓ 269 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/registerSW.js                           0.13 kB
+dist/manifest.webmanifest                    0.41 kB
+dist/index.html                              0.81 kB │ gzip:   0.43 kB
+dist/assets/pdf.worker.min-B5Yc7dP4.mjs  1,327.59 kB
+dist/assets/index-CrPM-1Uc.css              10.88 kB │ gzip:   3.00 kB
+dist/assets/pdf.worker.min-B7U8ptvh.js       0.06 kB │ gzip:   0.08 kB
+dist/assets/pdf-rELvHkft.js                500.13 kB │ gzip: 152.68 kB
+dist/assets/index-BfC9f0jL.js            1,017.77 kB │ gzip: 352.62 kB
+
+✓ built in 214ms
+
+PWA v2.0.0
+mode      generateSW
+precache  21 entries (1511.07 KiB)
+files generated
+  dist/sw.js
+  dist/workbox-9c191d2f.js
+stderr:
+[plugin builtin:vite-reporter] 
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+npm notice
+npm notice New major version of npm available! 10.9.9 -> 12.2.3
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.3
+npm notice To update run: npm install -g npm@12.2.3
+npm notice
+$ CI=1 npm run e2e
+exit code: 1
+stdout:
+
+> whiteboard@0.0.0 e2e
+> playwright test && node scripts/journey-gif.mjs
+
+
+
+Running 131 tests using 5 workers
+
+[1/131] [chromium] › e2e/boards.spec.ts:56:1 › rename and delete a board; deletion survives reload
+[2/131] [chromium] › e2e/boards.spec.ts:80:1 › strokes on one board do not appear on another
+[3/131] [chromium] › e2e/boards.spec.ts:40:1 › create a board, draw two strokes, reload: same strokes
+[4/131] [chromium] › e2e/auth.spec.ts:130:1 › a wrong code shows a Traditional Chinese error and keeps the user signed out
+[5/131] [chromium] › e2e/auth.spec.ts:99:1 › sign in with an email code, stay signed in after reload, then sign out
+[6/131] [chromium] › e2e/canvas.spec.ts:28:1 › starts with no strokes and a valid camera
+[7/131] [chromium] › e2e/canvas.spec.ts:37:1 › mounts two stacked canvases in board-root sized by devicePixelRatio with touch-action none
+[8/131] [chromium] › e2e/canvas.spec.ts:71:1 › a pen stroke adds exactly one stroke with the dispatched pressures preserved
+[9/131] [chromium] › e2e/canvas.spec.ts:109:1 › two pen strokes add two strokes with distinct ids
+[10/131] [chromium] › e2e/canvas.spec.ts:124:1 › a mouse stroke draws with pressure 0.5
+[11/131] [chromium] › e2e/canvas.spec.ts:137:1 › a mouse stroke uses pressure 0.5 even when the event reports another pressure
+[12/131] [chromium] › e2e/canvas.spec.ts:149:1 › a one-finger touch drag pans the camera and adds no stroke
+[13/131] [chromium] › e2e/canvas.spec.ts:161:1 › a touch tap adds no stroke
+[14/131] [chromium] › e2e/canvas.spec.ts:171:1 › two touch pointers moving apart increase camera.zoom and add no stroke
+[15/131] [chromium] › e2e/canvas.spec.ts:193:1 › pinch zoom is anchored at the pinch midpoint
+[16/131] [chromium] › e2e/canvas.spec.ts:223:1 › a stroke drawn after panning is stored in world coordinates
+[17/131] [chromium] › e2e/canvas.spec.ts:256:1 › touch is ignored while a pen stroke is in progress
+[18/131] [chromium] › e2e/canvas.spec.ts:284:1 › the wheel pans without zooming or drawing
+[19/131] [chromium] › e2e/canvas.spec.ts:295:1 › ctrl + wheel zooms in and out, clamped to 0.1–8
+[20/131] [chromium] › e2e/canvas.spec.ts:313:1 › ctrl + wheel zoom is anchored at the cursor
+[21/131] [chromium] › e2e/landing.spec.ts:21:1 › a first visit to / opens a new board, and a stroke drawn there survives a reload
+[22/131] [chromium] › e2e/landing.spec.ts:40:1 › after opening board B from the list, / opens board B
+[23/131] [chromium] › e2e/landing.spec.ts:66:1 › after deleting the last opened board, / shows the board list
+[24/131] [chromium] › e2e/landing.spec.ts:82:1 › 「‹ 白板列表」 goes back to the list
+[25/131] [chromium] › e2e/minimap.spec.ts:25:1 › toggle is off initially, persists open state, and closes on second tap
+[26/131] [chromium] › e2e/minimap.spec.ts:44:1 › tap jumps to a stroke without changing zoom or stroke count
+[27/131] [chromium] › e2e/minimap.spec.ts:78:1 › touch drag moves on each step with a frozen fit and adds no stroke
+[28/131] [chromium] › e2e/minimap.spec.ts:106:1 › pen input on the minimap never creates ink
+[29/131] [chromium] › e2e/minimap.spec.ts:120:1 › panel stays clear of toolbar and chrome at phone and iPad sizes
+[30/131] [chromium] › e2e/minimap.spec.ts:140:1 › missing board hides the minimap control and panel
+[31/131] [chromium] › e2e/pdf-eraser.spec.ts:20:1 › eraser dragged over a page with no strokes leaves the page intact
+[32/131] (retries) [chromium] › e2e/minimap.spec.ts:78:1 › touch drag moves on each step with a frozen fit and adds no stroke (retry #1)
+[33/131] [chromium] › e2e/pdf-eraser.spec.ts:38:1 › eraser removes a stroke drawn over a page but keeps the page
+[34/131] [chromium] › e2e/pdf-export.spec.ts:17:1 › export menu is absent on a board without PDFs
+  1) [chromium] › e2e/minimap.spec.ts:78:1 › touch drag moves on each step with a frozen fit and adds no stroke 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: -1
+    Received: 1
+
+       95 |       const stepDirection = Math.sign(now.camera.x - lastX)
+       96 |       if (direction === 0) direction = stepDirection
+    >  97 |       expect(stepDirection).toBe(direction)
+          |                             ^
+       98 |       expect(now.minimap).toEqual(initialFit)
+       99 |       lastX = now.camera.x
+      100 |     }
+        at /workspace/e2e/minimap.spec.ts:97:29
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/minimap-touch-drag-moves-o-e7f6e-ozen-fit-and-adds-no-stroke-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/minimap-touch-drag-moves-o-e7f6e-ozen-fit-and-adds-no-stroke-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/minimap-touch-drag-moves-o-e7f6e-ozen-fit-and-adds-no-stroke-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/minimap-touch-drag-moves-o-e7f6e-ozen-fit-and-adds-no-stroke-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: -1
+    Received: 1
+
+       95 |       const stepDirection = Math.sign(now.camera.x - lastX)
+       96 |       if (direction === 0) direction = stepDirection
+    >  97 |       expect(stepDirection).toBe(direction)
+          |                             ^
+       98 |       expect(now.minimap).toEqual(initialFit)
+       99 |       lastX = now.camera.x
+      100 |     }
+        at /workspace/e2e/minimap.spec.ts:97:29
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/minimap-touch-drag-moves-o-e7f6e-ozen-fit-and-adds-no-stroke-chromium-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/minimap-touch-drag-moves-o-e7f6e-ozen-fit-and-adds-no-stroke-chromium-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/minimap-touch-drag-moves-o-e7f6e-ozen-fit-and-adds-no-stroke-chromium-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/minimap-touch-drag-moves-o-e7f6e-ozen-fit-and-adds-no-stroke-chromium-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[35/131] [chromium] › e2e/pdf.spec.ts:22:1 › import adds A4 and Letter pages stacked with a 24px gap, both rendered
+[36/131] [chromium] › e2e/pdf.spec.ts:41:1 › pen stroke over page 1 and the pages survive a reload
+[37/131] [chromium] › e2e/pdf-export.spec.ts:21:1 › exporting the imported PDF downloads two-pages-annotated.pdf
+[38/131] [chromium] › e2e/pdf.spec.ts:64:1 › one-finger touch drag over a page pans the camera and does not draw or move the page
+[39/131] [chromium] › e2e/pwa.spec.ts:3:1 › page links manifest and apple-touch-icon
+[40/131] [chromium] › e2e/pwa.spec.ts:9:1 › app shell renders offline after the service worker activates
+[41/131] [chromium] › e2e/smoke.spec.ts:3:1 › app shell loads: the board list at #/ and a board at /
+[42/131] [chromium] › e2e/sync.spec.ts:5:1 › after signing in and drawing, sync reaches 已同步 with nothing pending
+[43/131] [chromium] › e2e/tools.spec.ts:63:1 › eraser removes only the crossed stroke, also after reload
+[44/131] [chromium] › e2e/tools.spec.ts:99:1 › undoing the draw after undoing an erase removes the restored copy
+[45/131] [chromium] › e2e/tools.spec.ts:81:1 › undo after an erase restores the same points with a new id; redo removes it again
+[46/131] [chromium] › e2e/tools.spec.ts:110:1 › keyboard shortcuts undo and redo
+[47/131] [chromium] › e2e/tools.spec.ts:125:1 › highlighter stroke is stored with its tool and chosen colour
+[48/131] [chromium] › e2e/tools.spec.ts:137:1 › a touch drag with the eraser selected erases nothing
+[49/131] [chromium] › e2e/tools.spec.ts:145:1 › an erase interrupted by pointercancel can still be undone
+[50/131] [chromium] › e2e/finger-draw.spec.ts:27:1 › first visit: finger drawing is on, toggle reflects it
+[51/131] [chromium] › e2e/finger-draw.spec.ts:33:1 › a pen stroke turns finger drawing off and it stays off after reload
+[52/131] [chromium] › e2e/finger-draw.spec.ts:48:1 › a mouse stroke does not turn finger drawing off
+[53/131] [chromium] › e2e/finger-draw.spec.ts:58:1 › the user can turn it back on after a pen turned it off; the choice persists
+[54/131] [chromium] › e2e/finger-draw.spec.ts:71:1 › a stored setting survives reload and is not overridden
+[55/131] [chromium] › e2e/finger-draw.spec.ts:80:1 › a broken localStorage is ignored
+[56/131] [chromium] › e2e/finger-draw.spec.ts:95:1 › on: a one-finger drag adds exactly one stroke and does not pan
+[57/131] (retries) [chromium] › e2e/minimap.spec.ts:44:1 › tap jumps to a stroke without changing zoom or stroke count (retry #1)
+[58/131] [chromium] › e2e/finger-draw.spec.ts:107:1 › on: a finger draws with the highlighter
+[59/131] [chromium] › e2e/finger-draw.spec.ts:115:1 › on: a finger with the eraser erases a stroke
+[60/131] [chromium] › e2e/finger-draw.spec.ts:125:1 › on: two fingers moving apart zoom in and add no stroke
+[61/131] [chromium] › e2e/finger-draw.spec.ts:134:1 › on: a second finger during a finger stroke discards it, nothing is saved
+[62/131] [chromium] › e2e/finger-draw.spec.ts:159:1 › off: a one-finger drag pans and adds no stroke
+[63/131] [chromium] › e2e/finger-draw.spec.ts:170:1 › off: two fingers still pinch-zoom
+[64/131] [chromium] › e2e/finger-draw.spec.ts:179:1 › on: touch is still ignored while a pen stroke is in progress
+[65/131] [chromium] › e2e/finger-draw.spec.ts:194:1 › on: a second finger during a finger eraser gesture restores erased strokes, also after reload
+[66/131] [webkit-ipad] › e2e/auth.spec.ts:99:1 › sign in with an email code, stay signed in after reload, then sign out
+[67/131] [webkit-ipad] › e2e/auth.spec.ts:130:1 › a wrong code shows a Traditional Chinese error and keeps the user signed out
+[68/131] [webkit-ipad] › e2e/boards.spec.ts:40:1 › create a board, draw two strokes, reload: same strokes
+[69/131] [webkit-ipad] › e2e/boards.spec.ts:56:1 › rename and delete a board; deletion survives reload
+[70/131] [webkit-ipad] › e2e/boards.spec.ts:80:1 › strokes on one board do not appear on another
+[71/131] [webkit-ipad] › e2e/canvas.spec.ts:28:1 › starts with no strokes and a valid camera
+[72/131] [webkit-ipad] › e2e/canvas.spec.ts:37:1 › mounts two stacked canvases in board-root sized by devicePixelRatio with touch-action none
+[73/131] [webkit-ipad] › e2e/canvas.spec.ts:71:1 › a pen stroke adds exactly one stroke with the dispatched pressures preserved
+[74/131] [webkit-ipad] › e2e/canvas.spec.ts:109:1 › two pen strokes add two strokes with distinct ids
+  2) [chromium] › e2e/minimap.spec.ts:44:1 › tap jumps to a stroke without changing zoom or stroke count 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+    Call Log:
+    - Timeout 5000ms exceeded while waiting on the predicate
+
+      70 |     const after = await snap(page)
+      71 |     return Math.abs((after.viewport.minX + after.viewport.maxX) / 2 - wx) < 2 && Math.abs((after.viewport.minY + after.viewport.maxY) / 2 - wy) < 2
+    > 72 |   }).toBe(true)
+         |      ^
+      73 |   const after = await snap(page)
+      74 |   expect(after.camera.zoom).toBe(before.camera.zoom)
+      75 |   expect(after.strokes).toHaveLength(before.strokes.length)
+        at /workspace/e2e/minimap.spec.ts:72:6
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/minimap-tap-jumps-to-a-str-6821f-anging-zoom-or-stroke-count-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/minimap-tap-jumps-to-a-str-6821f-anging-zoom-or-stroke-count-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/minimap-tap-jumps-to-a-str-6821f-anging-zoom-or-stroke-count-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/minimap-tap-jumps-to-a-str-6821f-anging-zoom-or-stroke-count-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+    Call Log:
+    - Timeout 5000ms exceeded while waiting on the predicate
+
+      70 |     const after = await snap(page)
+      71 |     return Math.abs((after.viewport.minX + after.viewport.maxX) / 2 - wx) < 2 && Math.abs((after.viewport.minY + after.viewport.maxY) / 2 - wy) < 2
+    > 72 |   }).toBe(true)
+         |      ^
+      73 |   const after = await snap(page)
+      74 |   expect(after.camera.zoom).toBe(before.camera.zoom)
+      75 |   expect(after.strokes).toHaveLength(before.strokes.length)
+        at /workspace/e2e/minimap.spec.ts:72:6
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/minimap-tap-jumps-to-a-str-6821f-anging-zoom-or-stroke-count-chromium-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/minimap-tap-jumps-to-a-str-6821f-anging-zoom-or-stroke-count-chromium-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/minimap-tap-jumps-to-a-str-6821f-anging-zoom-or-stroke-count-chromium-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/minimap-tap-jumps-to-a-str-6821f-anging-zoom-or-stroke-count-chromium-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[75/131] [webkit-ipad] › e2e/canvas.spec.ts:137:1 › a mouse stroke uses pressure 0.5 even when the event reports another pressure
+[76/131] [webkit-ipad] › e2e/canvas.spec.ts:124:1 › a mouse stroke draws with pressure 0.5
+[77/131] [webkit-ipad] › e2e/canvas.spec.ts:149:1 › a one-finger touch drag pans the camera and adds no stroke
+[78/131] [webkit-ipad] › e2e/canvas.spec.ts:161:1 › a touch tap adds no stroke
+[79/131] [webkit-ipad] › e2e/canvas.spec.ts:171:1 › two touch pointers moving apart increase camera.zoom and add no stroke
+[80/131] [webkit-ipad] › e2e/canvas.spec.ts:193:1 › pinch zoom is anchored at the pinch midpoint
+[81/131] [webkit-ipad] › e2e/canvas.spec.ts:223:1 › a stroke drawn after panning is stored in world coordinates
+[82/131] [webkit-ipad] › e2e/canvas.spec.ts:256:1 › touch is ignored while a pen stroke is in progress
+[83/131] [webkit-ipad] › e2e/canvas.spec.ts:284:1 › the wheel pans without zooming or drawing
+[84/131] [webkit-ipad] › e2e/canvas.spec.ts:295:1 › ctrl + wheel zooms in and out, clamped to 0.1–8
+[85/131] [webkit-ipad] › e2e/canvas.spec.ts:313:1 › ctrl + wheel zoom is anchored at the cursor
+[86/131] [webkit-ipad] › e2e/landing.spec.ts:21:1 › a first visit to / opens a new board, and a stroke drawn there survives a reload
+[87/131] [webkit-ipad] › e2e/landing.spec.ts:40:1 › after opening board B from the list, / opens board B
+[88/131] [webkit-ipad] › e2e/landing.spec.ts:66:1 › after deleting the last opened board, / shows the board list
+[89/131] [webkit-ipad] › e2e/landing.spec.ts:82:1 › 「‹ 白板列表」 goes back to the list
+[90/131] [webkit-ipad] › e2e/minimap.spec.ts:25:1 › toggle is off initially, persists open state, and closes on second tap
+[91/131] [webkit-ipad] › e2e/minimap.spec.ts:44:1 › tap jumps to a stroke without changing zoom or stroke count
+[92/131] [webkit-ipad] › e2e/minimap.spec.ts:78:1 › touch drag moves on each step with a frozen fit and adds no stroke
+[93/131] [webkit-ipad] › e2e/minimap.spec.ts:106:1 › pen input on the minimap never creates ink
+[94/131] [webkit-ipad] › e2e/minimap.spec.ts:120:1 › panel stays clear of toolbar and chrome at phone and iPad sizes
+[95/131] [webkit-ipad] › e2e/minimap.spec.ts:140:1 › missing board hides the minimap control and panel
+[96/131] (retries) [webkit-ipad] › e2e/minimap.spec.ts:78:1 › touch drag moves on each step with a frozen fit and adds no stroke (retry #1)
+[97/131] [webkit-ipad] › e2e/pdf-eraser.spec.ts:20:1 › eraser dragged over a page with no strokes leaves the page intact
+[98/131] [webkit-ipad] › e2e/pdf-eraser.spec.ts:38:1 › eraser removes a stroke drawn over a page but keeps the page
+  3) [webkit-ipad] › e2e/minimap.spec.ts:78:1 › touch drag moves on each step with a frozen fit and adds no stroke 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: -1
+    Received: 1
+
+       95 |       const stepDirection = Math.sign(now.camera.x - lastX)
+       96 |       if (direction === 0) direction = stepDirection
+    >  97 |       expect(stepDirection).toBe(direction)
+          |                             ^
+       98 |       expect(now.minimap).toEqual(initialFit)
+       99 |       lastX = now.camera.x
+      100 |     }
+        at /workspace/e2e/minimap.spec.ts:97:29
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/minimap-touch-drag-moves-o-e7f6e-ozen-fit-and-adds-no-stroke-webkit-ipad/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/minimap-touch-drag-moves-o-e7f6e-ozen-fit-and-adds-no-stroke-webkit-ipad/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/minimap-touch-drag-moves-o-e7f6e-ozen-fit-and-adds-no-stroke-webkit-ipad/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/minimap-touch-drag-moves-o-e7f6e-ozen-fit-and-adds-no-stroke-webkit-ipad/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: -1
+    Received: 1
+
+       95 |       const stepDirection = Math.sign(now.camera.x - lastX)
+       96 |       if (direction === 0) direction = stepDirection
+    >  97 |       expect(stepDirection).toBe(direction)
+          |                             ^
+       98 |       expect(now.minimap).toEqual(initialFit)
+       99 |       lastX = now.camera.x
+      100 |     }
+        at /workspace/e2e/minimap.spec.ts:97:29
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/minimap-touch-drag-moves-o-e7f6e-ozen-fit-and-adds-no-stroke-webkit-ipad-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/minimap-touch-drag-moves-o-e7f6e-ozen-fit-and-adds-no-stroke-webkit-ipad-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/minimap-touch-drag-moves-o-e7f6e-ozen-fit-and-adds-no-stroke-webkit-ipad-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/minimap-touch-drag-moves-o-e7f6e-ozen-fit-and-adds-no-stroke-webkit-ipad-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[99/131] [webkit-ipad] › e2e/pdf-export.spec.ts:17:1 › export menu is absent on a board without PDFs
+[100/131] [webkit-ipad] › e2e/pdf-export.spec.ts:21:1 › exporting the imported PDF downloads two-pages-annotated.pdf
+[101/131] (retries) [webkit-ipad] › e2e/minimap.spec.ts:44:1 › tap jumps to a stroke without changing zoom or stroke count (retry #1)
+[102/131] [webkit-ipad] › e2e/pdf.spec.ts:22:1 › import adds A4 and Letter pages stacked with a 24px gap, both rendered
+[103/131] [webkit-ipad] › e2e/pdf.spec.ts:41:1 › pen stroke over page 1 and the pages survive a reload
+[104/131] [webkit-ipad] › e2e/pdf.spec.ts:64:1 › one-finger touch drag over a page pans the camera and does not draw or move the page
+[105/131] [webkit-ipad] › e2e/pwa.spec.ts:3:1 › page links manifest and apple-touch-icon
+[106/131] [webkit-ipad] › e2e/pwa.spec.ts:9:1 › app shell renders offline after the service worker activates
+[107/131] [webkit-ipad] › e2e/smoke.spec.ts:3:1 › app shell loads: the board list at #/ and a board at /
+[108/131] [webkit-ipad] › e2e/sync.spec.ts:5:1 › after signing in and drawing, sync reaches 已同步 with nothing pending
+[109/131] [webkit-ipad] › e2e/tools.spec.ts:63:1 › eraser removes only the crossed stroke, also after reload
+[110/131] [webkit-ipad] › e2e/tools.spec.ts:81:1 › undo after an erase restores the same points with a new id; redo removes it again
+[111/131] [webkit-ipad] › e2e/tools.spec.ts:99:1 › undoing the draw after undoing an erase removes the restored copy
+[112/131] [webkit-ipad] › e2e/tools.spec.ts:110:1 › keyboard shortcuts undo and redo
+[113/131] [webkit-ipad] › e2e/tools.spec.ts:125:1 › highlighter stroke is stored with its tool and chosen colour
+[114/131] [webkit-ipad] › e2e/tools.spec.ts:137:1 › a touch drag with the eraser selected erases nothing
+  4) [webkit-ipad] › e2e/minimap.spec.ts:44:1 › tap jumps to a stroke without changing zoom or stroke count 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+    Call Log:
+    - Timeout 5000ms exceeded while waiting on the predicate
+
+      70 |     const after = await snap(page)
+      71 |     return Math.abs((after.viewport.minX + after.viewport.maxX) / 2 - wx) < 2 && Math.abs((after.viewport.minY + after.viewport.maxY) / 2 - wy) < 2
+    > 72 |   }).toBe(true)
+         |      ^
+      73 |   const after = await snap(page)
+      74 |   expect(after.camera.zoom).toBe(before.camera.zoom)
+      75 |   expect(after.strokes).toHaveLength(before.strokes.length)
+        at /workspace/e2e/minimap.spec.ts:72:6
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/minimap-tap-jumps-to-a-str-6821f-anging-zoom-or-stroke-count-webkit-ipad/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/minimap-tap-jumps-to-a-str-6821f-anging-zoom-or-stroke-count-webkit-ipad/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/minimap-tap-jumps-to-a-str-6821f-anging-zoom-or-stroke-count-webkit-ipad/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/minimap-tap-jumps-to-a-str-6821f-anging-zoom-or-stroke-count-webkit-ipad/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+    Call Log:
+    - Timeout 5000ms exceeded while waiting on the predicate
+
+      70 |     const after = await snap(page)
+      71 |     return Math.abs((after.viewport.minX + after.viewport.maxX) / 2 - wx) < 2 && Math.abs((after.viewport.minY + after.viewport.maxY) / 2 - wy) < 2
+    > 72 |   }).toBe(true)
+         |      ^
+      73 |   const after = await snap(page)
+      74 |   expect(after.camera.zoom).toBe(before.camera.zoom)
+      75 |   expect(after.strokes).toHaveLength(before.strokes.length)
+        at /workspace/e2e/minimap.spec.ts:72:6
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/minimap-tap-jumps-to-a-str-6821f-anging-zoom-or-stroke-count-webkit-ipad-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/minimap-tap-jumps-to-a-str-6821f-anging-zoom-or-stroke-count-webkit-ipad-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/minimap-tap-jumps-to-a-str-6821f-anging-zoom-or-stroke-count-webkit-ipad-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/minimap-tap-jumps-to-a-str-6821f-anging-zoom-or-stroke-count-webkit-ipad-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[115/131] [webkit-ipad] › e2e/tools.spec.ts:145:1 › an erase interrupted by pointercancel can still be undone
+[116/131] [webkit-ipad] › e2e/finger-draw.spec.ts:27:1 › first visit: finger drawing is on, toggle reflects it
+[117/131] [webkit-ipad] › e2e/finger-draw.spec.ts:33:1 › a pen stroke turns finger drawing off and it stays off after reload
+[118/131] [webkit-ipad] › e2e/finger-draw.spec.ts:71:1 › a stored setting survives reload and is not overridden
+[119/131] [webkit-ipad] › e2e/finger-draw.spec.ts:48:1 › a mouse stroke does not turn finger drawing off
+[120/131] [webkit-ipad] › e2e/finger-draw.spec.ts:58:1 › the user can turn it back on after a pen turned it off; the choice persists
+[121/131] [webkit-ipad] › e2e/finger-draw.spec.ts:80:1 › a broken localStorage is ignored
+[122/131] [webkit-ipad] › e2e/finger-draw.spec.ts:95:1 › on: a one-finger drag adds exactly one stroke and does not pan
+[123/131] [webkit-ipad] › e2e/finger-draw.spec.ts:107:1 › on: a finger draws with the highlighter
+[124/131] [webkit-ipad] › e2e/finger-draw.spec.ts:115:1 › on: a finger with the eraser erases a stroke
+[125/131] [webkit-ipad] › e2e/finger-draw.spec.ts:125:1 › on: two fingers moving apart zoom in and add no stroke
+[126/131] [webkit-ipad] › e2e/finger-draw.spec.ts:134:1 › on: a second finger during a finger stroke discards it, nothing is saved
+[127/131] [webkit-ipad] › e2e/finger-draw.spec.ts:159:1 › off: a one-finger drag pans and adds no stroke
+[128/131] [webkit-ipad] › e2e/finger-draw.spec.ts:170:1 › off: two fingers still pinch-zoom
+[129/131] [webkit-ipad] › e2e/finger-draw.spec.ts:179:1 › on: touch is still ignored while a pen stroke is in progress
+[130/131] [webkit-ipad] › e2e/finger-draw.spec.ts:194:1 › on: a second finger during a finger eraser gesture restores erased strokes, also after reload
+[131/131] [journey] › e2e/journeys/board.journey.ts:5:1 › Board: draw → pan → zoom → reload → rename
+[132/131] [journey] › e2e/journeys/finger-draw.journey.ts:5:1 › Finger drawing: turn on → draw → pinch-zoom
+[133/131] [journey] › e2e/journeys/minimap.journey.ts:5:1 › Minimap: open → tap → jump there
+[134/131] [journey] › e2e/journeys/pdf.journey.ts:5:1 › PDF: import → annotate → reload → erase → pan
+[135/131] [journey] › e2e/journeys/sync.journey.ts:6:1 › Sync: draw signed out → sign in → synced
+[136/131] (retries) [journey] › e2e/journeys/minimap.journey.ts:5:1 › Minimap: open → tap → jump there (retry #1)
+  5) [journey] › e2e/journeys/minimap.journey.ts:5:1 › Minimap: open → tap → jump there ────────────
+
+    Error: page.evaluate: Error: expected a canvas at 837,877, got undefined
+
+       at helpers.ts:52
+
+      50 |
+      51 | export async function pointer(page: Page, events: PointerInit[]) {
+    > 52 |   await page.evaluate((events) => {
+         |              ^
+      53 |     for (const e of events) {
+      54 |       const target = document.elementFromPoint(e.x, e.y)
+      55 |       if (!(target instanceof HTMLCanvasElement)) {
+        at pointer (/workspace/e2e/helpers.ts:52:14)
+        at /workspace/e2e/journeys/minimap.journey.ts:30:9
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/journeys-minimap.journey.ts-Minimap-open-→-tap-→-jump-there-journey/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/journeys-minimap.journey.ts-Minimap-open-→-tap-→-jump-there-journey/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/journeys-minimap.journey.ts-Minimap-open-→-tap-→-jump-there-journey/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/journeys-minimap.journey.ts-Minimap-open-→-tap-→-jump-there-journey/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: page.evaluate: Error: expected a canvas at 837,877, got undefined
+
+       at helpers.ts:52
+
+      50 |
+      51 | export async function pointer(page: Page, events: PointerInit[]) {
+    > 52 |   await page.evaluate((events) => {
+         |              ^
+      53 |     for (const e of events) {
+      54 |       const target = document.elementFromPoint(e.x, e.y)
+      55 |       if (!(target instanceof HTMLCanvasElement)) {
+        at pointer (/workspace/e2e/helpers.ts:52:14)
+        at /workspace/e2e/journeys/minimap.journey.ts:30:9
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/journeys-minimap.journey.ts-Minimap-open-→-tap-→-jump-there-journey-retry1/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/journeys-minimap.journey.ts-Minimap-open-→-tap-→-jump-there-journey-retry1/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/journeys-minimap.journey.ts-Minimap-open-→-tap-→-jump-there-journey-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/journeys-minimap.journey.ts-Minimap-open-→-tap-→-jump-there-journey-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+  5 failed
+    [chromium] › e2e/minimap.spec.ts:44:1 › tap jumps to a stroke without changing zoom or stroke count 
+    [chromium] › e2e/minimap.spec.ts:78:1 › touch drag moves on each step with a frozen fit and adds no stroke 
+    [webkit-ipad] › e2e/minimap.spec.ts:44:1 › tap jumps to a stroke without changing zoom or stroke count 
+    [webkit-ipad] › e2e/minimap.spec.ts:78:1 › touch drag moves on each step with a frozen fit and adds no stroke 
+    [journey] › e2e/journeys/minimap.journey.ts:5:1 › Minimap: open → tap → jump there ─────────────
+  1 skipped
+  125 passed (1.0m)
+stderr:
+[WebServer] [plugin builtin:vite-reporter] 
+[WebServer] (!) Some chunks are larger than 500 kB after minification. Consider:
+[WebServer] - Using dynamic import() to code-split the application
+[WebServer] - Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+[WebServer] - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+Reports: evidence 14 in verify-5-reports/.
