@@ -93,14 +93,16 @@ export function createRepository(db: WhiteboardDB) {
     return rows.filter((s) => s.deletedAt === null).sort((a, b) => a.createdAt - b.createdAt)
   }
 
+  /** Tombstones the stroke and touches its board (updatedAt), so a cached board thumbnail is redrawn. */
   async function deleteStroke(id: string): Promise<void> {
-    await db.transaction('rw', db.strokes, db.outbox, async () => {
-      const changed = await db.strokes
-        .where('id')
-        .equals(id)
-        .filter((s) => s.deletedAt === null)
-        .modify({ deletedAt: Date.now() })
-      if (changed > 0) await queue(db, 'strokes', [id])
+    await db.transaction('rw', db.strokes, db.boards, db.outbox, async () => {
+      const stroke = await db.strokes.get(id)
+      if (!stroke || stroke.deletedAt !== null) return
+      const now = Date.now()
+      await db.strokes.update(id, { deletedAt: now })
+      const touched = await db.boards.where('id').equals(stroke.boardId).modify({ updatedAt: now })
+      await queue(db, 'strokes', [id])
+      if (touched > 0) await queue(db, 'boards', [stroke.boardId])
     })
   }
 
