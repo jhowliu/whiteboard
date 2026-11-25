@@ -3,7 +3,7 @@ import { PdfRenderer } from './pdfRenderer.ts'
 import { quantizeRenderScale } from './pdfLayout.ts'
 import { strokesHitByEraser } from './eraser.ts'
 import { createHistory, type HistoryOps } from './history.ts'
-import { strokesInLasso, transformStroke, unionBBox } from './lasso.ts'
+import { type Corner, cornerAndAnchor, resizeFactor, scaleBBox, strokesInLasso, type StrokeTransform, transformStroke, unionBBox } from './lasso.ts'
 import { applyCamera, HIGHLIGHTER_ALPHA, PAPER_COLOR, strokePath } from './render.ts'
 import { type MinimapFit } from './minimap.ts'
 import { type BBox, bboxIntersects, computeBBox, DEFAULT_PEN, type Stroke, type StrokePoint, type Tool } from './stroke.ts'
@@ -67,8 +67,13 @@ export type EngineOptions = {
   /** Called when a stroke is committed (pointerup). */
   onStrokeCommit?: (stroke: Stroke) => void
   onCameraChange?: (camera: Camera) => void
-  /** Called with the ids of strokes that were tombstoned (erase, undo of an add, redo of an erase). */
+  /** Called with the ids of strokes that were tombstoned by an erase. */
   onStrokesDelete?: (ids: string[]) => void
+  /**
+   * Called once per history step (undo, redo) and per move or resize, with the ids it tombstoned and the strokes it
+   * added. Storage applies one such call in one transaction.
+   */
+  onStrokeChange?: (change: { removed: string[]; added: Stroke[] }) => void
   /** Called when undo/redo availability may have changed. */
   onHistoryChange?: (state: { canUndo: boolean; canRedo: boolean }) => void
   /** Initial finger-drawing state (touch draws instead of panning). */
@@ -77,8 +82,8 @@ export type EngineOptions = {
   onPenSeen?: () => void
 }
 
-/** What a pointer gesture is doing: drawing a stroke or eraser pass, drawing a lasso, or moving the selection. */
-type DraftMode = 'draw' | 'lasso' | 'move'
+/** What a pointer gesture is doing: drawing a stroke or eraser pass, drawing a lasso, moving the selection, or resizing it. */
+type DraftMode = 'draw' | 'lasso' | 'move' | 'resize'
 
 type Draft = {
   pointerId: number
@@ -94,6 +99,8 @@ type Draft = {
   down: Point
   /** Latest screen point of the pointer. */
   at: Point
+  /** The corner handle a resize started from, or null for the other modes. */
+  handle: Corner | null
   /** The farthest the pointer has been from `down` (CSS px). A closed lasso loop still counts as a loop. */
   reach: number
 }
@@ -115,7 +122,19 @@ const SELECTION_PAD_PX = 8
 const OVERLAY_LINE_PX = 1.5
 const OVERLAY_DASH = [6, 4]
 const DEFAULT_ACCENT = '#0969da'
-const NO_OFFSET: Point = { x: 0, y: 0 }
+/** Corner handles (issue #36): centre pushed this far outward from the padded box corner, in CSS px. */
+const HANDLE_OFFSET_PX = 8
+/** Handle circle radius and border width, CSS px. */
+const HANDLE_RADIUS_PX = 6
+const HANDLE_BORDER_PX = 1.5
+/** A pointerdown this close (CSS px) to a handle centre starts a resize. */
+const HANDLE_HIT_PX = 22
+/** Handles are hidden when the selection's world bbox diagonal is shorter than this (world px). */
+const HANDLE_MIN_DIAG_WORLD = 1
+const HANDLE_CORNERS: readonly Corner[] = ['nw', 'ne', 'sw', 'se']
+/** A resize whose factor is this close to 1 changes nothing. */
+const SCALE_EPS = 0.001
+const DEFAULT_PAPER = '#ffffff'
 
 function makeCanvas(): HTMLCanvasElement {
   const canvas = document.createElement('canvas')
@@ -282,12 +301,11 @@ export class Engine {
     this.setSelection(bbox ? { ids: [...ids], bbox } : null)
   }
 
-  /** Screen rectangle of the selection box, with `offset` (world units) applied to the selection first. */
-  private selectionScreenBox(offset: Point = { x: 0, y: 0 }): BBox | null {
-    if (!this.selection) return null
-    const b = this.selection.bbox
-    const tl = worldToScreen(this.camera, { x: b.minX + offset.x, y: b.minY + offset.y })
-    const br = worldToScreen(this.camera, { x: b.maxX + offset.x, y: b.maxY + offset.y })
+  /** Screen rectangle of a world box, padded by SELECTION_PAD_PX. */
+  private selectionScreenBox(b: BBox | null): BBox | null {
+    if (!b) return null
+    const tl = worldToScreen(this.camera, { x: b.minX, y: b.minY })
+    const br = worldToScreen(this.camera, { x: b.maxX, y: b.maxY })
     return {
       minX: tl.x - SELECTION_PAD_PX,
       minY: tl.y - SELECTION_PAD_PX,
@@ -297,32 +315,66 @@ export class Engine {
   }
 
   private inSelectionBox(p: Point): boolean {
-    const box = this.selectionScreenBox()
+    const box = this.selectionScreenBox(this.selection?.bbox ?? null)
     return !!box && p.x >= box.minX && p.x <= box.maxX && p.y >= box.minY && p.y <= box.maxY
+  }
+
+  /** Handle centres on screen for the world box `bbox`, or [] when the box is too small to show handles. */
+  private handleCentres(bbox: BBox | null): { corner: Corner; at: Point }[] {
+    if (!bbox || Math.hypot(bbox.maxX - bbox.minX, bbox.maxY - bbox.minY) < HANDLE_MIN_DIAG_WORLD) return []
+    return HANDLE_CORNERS.map((corner) => {
+      const p = worldToScreen(this.camera, cornerAndAnchor(bbox, corner).corner)
+      const east = corner === 'ne' || corner === 'se'
+      const south = corner === 'sw' || corner === 'se'
+      return {
+        corner,
+        at: { x: p.x + (east ? HANDLE_OFFSET_PX : -HANDLE_OFFSET_PX), y: p.y + (south ? HANDLE_OFFSET_PX : -HANDLE_OFFSET_PX) },
+      }
+    })
+  }
+
+  /** The nearest handle within HANDLE_HIT_PX of a screen point, if any. Thin boxes put two handles close together. */
+  private handleAt(p: Point): Corner | null {
+    let best: Corner | null = null
+    let bestDist = HANDLE_HIT_PX
+    for (const h of this.handleCentres(this.selection?.bbox ?? null)) {
+      const dist = Math.hypot(p.x - h.at.x, p.y - h.at.y)
+      if (dist <= bestDist) {
+        best = h.corner
+        bestDist = dist
+      }
+    }
+    return best
   }
 
   private applyOps(ops: HistoryOps | null): void {
     if (ops) {
-      if (ops.tombstone.length > 0) this.removeStrokes(ops.tombstone)
-      for (const s of ops.add) {
-        this.strokes.push(s)
-        this.options.onStrokeCommit?.(s)
-      }
+      const removed = this.dropStrokes(ops.tombstone)
+      this.strokes.push(...ops.add)
       this.committedDirty = true
+      this.options.onStrokeChange?.({ removed: removed.map((s) => s.id), added: ops.add })
       this.schedule()
       this.emit()
     }
     this.notifyHistory()
   }
 
-  private removeStrokes(ids: string[]): Stroke[] {
+  /** Takes strokes out of the board state without reporting them. Returns the strokes that were there. */
+  private dropStrokes(ids: string[]): Stroke[] {
     const set = new Set(ids)
     const removed = this.strokes.filter((s) => set.has(s.id))
     if (removed.length === 0) return removed
     this.strokes = this.strokes.filter((s) => !set.has(s.id))
     for (const id of set) this.paths.delete(id)
-    this.options.onStrokesDelete?.(removed.map((s) => s.id))
     this.committedDirty = true
+    return removed
+  }
+
+  /** Takes strokes out of the board state and reports them as erased. */
+  private removeStrokes(ids: string[]): Stroke[] {
+    const removed = this.dropStrokes(ids)
+    if (removed.length === 0) return removed
+    this.options.onStrokesDelete?.(removed.map((s) => s.id))
     this.schedule()
     this.emit()
     return removed
@@ -438,8 +490,13 @@ export class Engine {
     const { tool, color, size } = this.toolState
     const at = this.toScreen(e)
     let mode: DraftMode = 'draw'
+    let handle: Corner | null = null
     if (tool === 'lasso') {
-      if (this.selection && this.inSelectionBox(at)) {
+      handle = this.handleAt(at)
+      if (handle) {
+        mode = 'resize'
+        this.committedDirty = true // the selected strokes are hidden from the committed layer while resizing
+      } else if (this.selection && this.inSelectionBox(at)) {
         mode = 'move'
         this.committedDirty = true // the selected strokes are hidden from the committed layer while moving
       } else {
@@ -459,6 +516,7 @@ export class Engine {
       finger,
       down: at,
       at,
+      handle,
       reach: 0,
     }
     this.draft = draft
@@ -475,7 +533,7 @@ export class Engine {
       const at = this.toScreen(e)
       this.trackDraft(draft, at)
       if (draft.finger) this.touches.set(e.pointerId, at)
-      if (draft.mode !== 'move') {
+      if (draft.mode === 'draw' || draft.mode === 'lasso') {
         const rect = this.live.getBoundingClientRect()
         const coalesced = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : []
         const samples = coalesced.length > 0 ? coalesced : [e]
@@ -593,6 +651,10 @@ export class Engine {
       this.finishMove(draft)
       return
     }
+    if (draft.mode === 'resize') {
+      this.finishResize(draft)
+      return
+    }
     if (draft.tool === 'eraser') {
       this.history.recordErase(draft.erased)
       this.notifyHistory()
@@ -634,35 +696,50 @@ export class Engine {
     this.selectIds(strokesInLasso(this.strokes, draft.points.map(([x, y]) => ({ x, y }))))
   }
 
-  /**
-   * Moves the selected strokes: tombstones the old ones and commits translated copies with new ids.
-   * The selection follows the copies. One move is one history entry.
-   */
+  /** Moves the selection by the pointer delta. A move shorter than MOVE_MIN_PX changes nothing. */
   private finishMove(draft: Draft): void {
     const dxPx = draft.at.x - draft.down.x
     const dyPx = draft.at.y - draft.down.y
-    const ids = new Set(this.selection?.ids ?? [])
-    const before = this.strokes.filter((s) => ids.has(s.id))
-    if (before.length === 0 || Math.hypot(dxPx, dyPx) < MOVE_MIN_PX) {
+    if (Math.hypot(dxPx, dyPx) < MOVE_MIN_PX) {
       this.requestLive() // the strokes come back on the committed layer
       return
     }
-    const dx = dxPx / this.camera.zoom
-    const dy = dyPx / this.camera.zoom
+    this.replaceSelected({ dx: dxPx / this.camera.zoom, dy: dyPx / this.camera.zoom })
+  }
+
+  /** Scales the selection about the corner opposite the dragged handle. A factor within SCALE_EPS of 1 changes nothing. */
+  private finishResize(draft: Draft): void {
+    const r = this.resizeScale(draft)
+    if (!r || Math.abs(r.scale - 1) < SCALE_EPS) {
+      this.requestLive()
+      return
+    }
+    this.replaceSelected({ scale: r.scale, anchor: r.anchor })
+  }
+
+  /**
+   * Replaces the selected strokes with transformed copies that have new ids: tombstones the old ones and commits
+   * the copies. The selection follows the copies. One transform is one history entry.
+   */
+  private replaceSelected(t: StrokeTransform): void {
+    const ids = new Set(this.selection?.ids ?? [])
+    const before = this.strokes.filter((s) => ids.has(s.id))
+    if (before.length === 0) {
+      this.requestLive()
+      return
+    }
     const now = Date.now()
     const after: Stroke[] = before.map((s) => ({
-      ...transformStroke(s, { dx, dy }),
+      ...transformStroke(s, t),
       id: crypto.randomUUID(),
       createdAt: now,
     }))
-    this.removeStrokes(before.map((s) => s.id))
-    for (const s of after) {
-      this.strokes.push(s)
-      this.options.onStrokeCommit?.(s)
-    }
+    this.dropStrokes(before.map((s) => s.id))
+    this.strokes.push(...after)
+    this.committedDirty = true
+    this.options.onStrokeChange?.({ removed: before.map((s) => s.id), added: after })
     this.history.recordTransform(before, after)
     this.notifyHistory()
-    this.committedDirty = true
     this.selectIds(after.map((s) => s.id))
   }
 
@@ -770,8 +847,9 @@ export class Engine {
     ctx.clearRect(0, 0, this.committed.width, this.committed.height)
     applyCamera(ctx, this.camera, this.dpr)
     const view = this.viewportRect()
-    // While a selection is being moved, its strokes are drawn on the live layer instead.
-    const moving = this.draft?.mode === 'move' ? new Set(this.selection?.ids) : null
+    // While a selection is being moved or resized, its strokes are drawn on the live layer instead.
+    const dragging = this.draft?.mode === 'move' || this.draft?.mode === 'resize'
+    const moving = dragging ? new Set(this.selection?.ids) : null
     const ordered = [
       ...this.strokes.filter((s) => s.tool === 'highlighter'),
       ...this.strokes.filter((s) => s.tool !== 'highlighter'),
@@ -804,17 +882,16 @@ export class Engine {
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.clearRect(0, 0, this.live.width, this.live.height)
     const draft = this.draft
-    const offset = draft?.mode === 'move' ? this.moveOffset(draft) : NO_OFFSET
     if (draft?.mode === 'draw' && isDrawTool(draft.tool)) {
       applyCamera(ctx, this.camera, this.dpr)
       this.fillStroke(ctx, { points: draft.points, size: draft.size, color: draft.color, simulatePressure: draft.simulatePressure, tool: draft.tool })
     }
-    if (draft?.mode === 'move' && this.selection) {
+    const transform = this.draftTransform()
+    if (transform && this.selection) {
       applyCamera(ctx, this.camera, this.dpr)
       const ids = new Set(this.selection.ids)
-      const delta = { dx: offset.x, dy: offset.y }
       for (const s of this.strokes) {
-        if (ids.has(s.id)) this.fillStroke(ctx, transformStroke(s, delta))
+        if (ids.has(s.id)) this.fillStroke(ctx, transformStroke(s, transform))
       }
     }
     // Overlays are drawn in screen pixels, so their width does not scale with the zoom.
@@ -832,14 +909,56 @@ export class Engine {
       ctx.closePath()
       ctx.stroke()
     }
-    const box = this.selectionScreenBox(offset)
+    const preview = this.previewBBox()
+    const box = this.selectionScreenBox(preview)
     if (box) ctx.strokeRect(box.minX, box.minY, box.maxX - box.minX, box.maxY - box.minY)
     ctx.setLineDash([])
+    for (const h of this.handleCentres(preview)) {
+      ctx.beginPath()
+      ctx.arc(h.at.x, h.at.y, HANDLE_RADIUS_PX, 0, Math.PI * 2)
+      ctx.fillStyle = this.paperColor()
+      ctx.fill()
+      ctx.lineWidth = HANDLE_BORDER_PX
+      ctx.strokeStyle = this.accentColor()
+      ctx.stroke()
+    }
   }
 
-  /** Translation of a move in progress, in world units: the pointer delta divided by the zoom. */
-  private moveOffset(draft: Draft): Point {
-    return { x: (draft.at.x - draft.down.x) / this.camera.zoom, y: (draft.at.y - draft.down.y) / this.camera.zoom }
+  /** The transform the selected strokes are drawn with during a move or resize drag, or null otherwise. */
+  private draftTransform(): StrokeTransform | null {
+    const d = this.draft
+    if (d?.mode === 'move') {
+      return { dx: (d.at.x - d.down.x) / this.camera.zoom, dy: (d.at.y - d.down.y) / this.camera.zoom }
+    }
+    if (d?.mode === 'resize') {
+      const r = this.resizeScale(d)
+      return r ? { scale: r.scale, anchor: r.anchor } : null
+    }
+    return null
+  }
+
+  /** The scale factor and world anchor of a resize drag, or null when the draft has no handle or selection. */
+  private resizeScale(draft: Draft): { scale: number; anchor: Point } | null {
+    const b = this.selection?.bbox
+    if (!b || !draft.handle) return null
+    const { corner, anchor } = cornerAndAnchor(b, draft.handle)
+    const scale = resizeFactor({
+      anchor,
+      corner,
+      delta: { x: draft.at.x - draft.down.x, y: draft.at.y - draft.down.y },
+      zoom: this.camera.zoom,
+    })
+    return { scale, anchor }
+  }
+
+  /** The selection's world box as it is drawn now: moved or scaled while a drag is in progress. */
+  private previewBBox(): BBox | null {
+    const b = this.selection?.bbox
+    if (!b) return null
+    const t = this.draftTransform()
+    if (!t) return b
+    if ('scale' in t) return scaleBBox(b, t.scale, t.anchor)
+    return { minX: b.minX + t.dx, minY: b.minY + t.dy, maxX: b.maxX + t.dx, maxY: b.maxY + t.dy }
   }
 
   private fillStroke(ctx: CanvasRenderingContext2D, stroke: { points: StrokePoint[]; size: number; color: string; simulatePressure: boolean; tool?: Tool }): void {
@@ -853,5 +972,11 @@ export class Engine {
   private accentColor(): string {
     const value = getComputedStyle(this.host).getPropertyValue('--accent').trim()
     return value || DEFAULT_ACCENT
+  }
+
+  /** The `--paper` colour of the page, for handle fills drawn on the canvas. */
+  private paperColor(): string {
+    const value = getComputedStyle(this.host).getPropertyValue('--paper').trim()
+    return value || DEFAULT_PAPER
   }
 }

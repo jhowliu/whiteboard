@@ -93,6 +93,28 @@ export function createRepository(db: WhiteboardDB) {
     return rows.filter((s) => s.deletedAt === null).sort((a, b) => a.createdAt - b.createdAt)
   }
 
+  /**
+   * Tombstones `removedIds` and stores `added` in one transaction, so a history step or a move/resize is never
+   * half-applied (a crash between two writes would otherwise lose the strokes). Ids already tombstoned are skipped.
+   */
+  async function applyStrokeChanges(boardId: string, removedIds: string[], added: NewStroke[]): Promise<void> {
+    if (removedIds.length === 0 && added.length === 0) return
+    await db.transaction('rw', db.boards, db.strokes, db.outbox, async () => {
+      const now = Date.now()
+      const tombstoned: string[] = []
+      for (const id of removedIds) {
+        const stroke = await db.strokes.get(id)
+        if (!stroke || stroke.deletedAt !== null) continue
+        await db.strokes.update(id, { deletedAt: now })
+        tombstoned.push(id)
+      }
+      for (const stroke of added) await db.strokes.put({ ...stroke, boardId, ownerId: null, deletedAt: null })
+      const touched = await db.boards.where('id').equals(boardId).modify({ updatedAt: now })
+      await queue(db, 'strokes', [...tombstoned, ...added.map((s) => s.id)])
+      if (touched > 0) await queue(db, 'boards', [boardId])
+    })
+  }
+
   /** Tombstones the stroke and touches its board (updatedAt), so a cached board thumbnail is redrawn. */
   async function deleteStroke(id: string): Promise<void> {
     await db.transaction('rw', db.strokes, db.boards, db.outbox, async () => {
@@ -170,6 +192,7 @@ export function createRepository(db: WhiteboardDB) {
     addStroke,
     listStrokes,
     deleteStroke,
+    applyStrokeChanges,
     importPdf,
     listPdfPages,
     getPdfBlob,
@@ -192,6 +215,7 @@ export const {
   addStroke,
   listStrokes,
   deleteStroke,
+  applyStrokeChanges,
   importPdf,
   listPdfPages,
   getPdfBlob,

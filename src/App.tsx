@@ -13,6 +13,7 @@ import { readPdfPageSizes } from './engine/pdfRenderer.ts'
 import { exportAnnotatedPdf, annotatedFileName } from './engine/pdfExport.ts'
 import {
   addStroke,
+  applyStrokeChanges,
   createBoard,
   deleteStroke,
   getBoard,
@@ -217,6 +218,7 @@ function BoardView({ boardId, onBack }: { boardId: string; onBack: () => void })
         camera: loadCamera(boardId),
         onStrokeCommit: (stroke) => void addStroke(boardId, stroke),
         onStrokesDelete: (ids) => ids.forEach((id) => void deleteStroke(id)),
+        onStrokeChange: ({ removed, added }) => void applyStrokeChanges(boardId, removed, added),
         onHistoryChange: setHistory,
         fingerDraw: loadFingerDraw() ?? true,
         onPenSeen: () => {
