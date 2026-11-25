@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import { center, pacedPenStroke, pause, snapshot } from '../helpers.ts'
 import { mockSupabase, signInThroughDialog } from '../mock-supabase.ts'
 
-// Journey: draw while signed out → sign in with an email code → the strokes sync and the header shows 已同步.
+// Journey: draw while signed out → ‹ 白板列表 → sign in with an email code → reopen the board → the strokes sync and it shows 已同步.
 test('sync journey', async ({ page }) => {
   await mockSupabase(page)
   await page.goto('/#/')
@@ -17,7 +17,13 @@ test('sync journey', async ({ page }) => {
   await pacedPenStroke(page, wave(c.y - 60))
   await pause(page)
 
+  await page.getByTestId('back-to-list').click()
+  await expect(page.getByTestId('board-list')).toBeVisible()
   await signInThroughDialog(page, { pauseMs: 500 })
+  await pause(page)
+  await page.getByTestId('open-board').first().click()
+  await expect(page.getByTestId('board-root')).toBeVisible()
+  await expect.poll(async () => (await snapshot(page).catch(() => null))?.boardId).toBeTruthy()
   await pause(page)
   await pacedPenStroke(page, wave(c.y + 40))
   await expect(page.getByTestId('sync-status')).toContainText('已同步', { timeout: 15_000 })

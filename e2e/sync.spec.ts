@@ -9,7 +9,11 @@ test('after signing in and drawing, sync reaches 已同步 with nothing pending'
   await expect(page.getByTestId('board-root')).toBeVisible()
   await expect.poll(async () => (await snapshot(page).catch(() => null))?.boardId).toBeTruthy()
 
+  // Sign-in lives in the board list's header.
+  await page.getByTestId('back-to-list').click()
   await signInThroughDialog(page)
+  await page.getByTestId('open-board').first().click()
+  await expect.poll(async () => (await snapshot(page).catch(() => null))?.boardId).toBeTruthy()
   const c = await center(page)
   await pacedPenStroke(page, Array.from({ length: 12 }, (_, i) => ({ x: c.x - 60 + i * 10, y: c.y + (i % 3) * 6 })))
   await expect(page.getByTestId('sync-status')).toContainText('已同步', { timeout: 15_000 })
