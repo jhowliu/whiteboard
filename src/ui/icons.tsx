@@ -117,3 +117,19 @@ export const MinimapIcon = () => (
     <rect x="8" y="9" width="6" height="5" rx="1" />
   </Icon>
 )
+
+export const VideoIcon = () => (
+  <Icon>
+    <rect x="3" y="5" width="18" height="14" rx="3" />
+    <path d="M10 9.5 15 12l-5 2.5z" />
+  </Icon>
+)
+
+export const TrashIcon = () => (
+  <Icon>
+    <path d="M4.5 7h15" />
+    <path d="M9.5 7V5a1.5 1.5 0 0 1 1.5-1.5h2A1.5 1.5 0 0 1 14.5 5v2" />
+    <path d="M6.5 7l1 12a2 2 0 0 0 2 1.8h5a2 2 0 0 0 2-1.8l1-12" />
+    <path d="M10 11v5.5M14 11v5.5" />
+  </Icon>
+)
