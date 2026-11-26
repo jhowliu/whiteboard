@@ -11,6 +11,8 @@ const REMOTE_TABLE: Record<SyncTable, string> = {
   strokes: 'strokes',
   pdfFiles: 'pdf_files',
   pdfPages: 'pdf_pages',
+  videos: 'videos',
+  videoMarks: 'video_marks',
 }
 
 type Raw = Record<string, unknown>
@@ -51,6 +53,29 @@ function toRemote(table: SyncTable, r: SyncRow): Raw {
         width: r.width,
         height: r.height,
       }
+    case 'videos':
+      return {
+        id: r.id,
+        board_id: r.boardId,
+        owner_id: r.ownerId,
+        provider: r.provider,
+        external_id: r.externalId,
+        title: r.title,
+        created_at: r.createdAt,
+        deleted_at: r.deletedAt,
+      }
+    case 'videoMarks':
+      return {
+        id: r.id,
+        board_id: r.boardId,
+        video_id: r.videoId,
+        owner_id: r.ownerId,
+        t: r.t,
+        x: r.x,
+        y: r.y,
+        created_at: r.createdAt,
+        deleted_at: r.deletedAt,
+      }
   }
 }
 
@@ -86,6 +111,29 @@ function fromRemote(table: SyncTable, r: Raw): SyncRow {
         width: r.width,
         height: r.height,
       }
+    case 'videos':
+      return {
+        id,
+        boardId: r.board_id,
+        ownerId: r.owner_id,
+        provider: r.provider,
+        externalId: r.external_id,
+        title: r.title,
+        createdAt: r.created_at,
+        deletedAt: r.deleted_at,
+      }
+    case 'videoMarks':
+      return {
+        id,
+        boardId: r.board_id,
+        videoId: r.video_id,
+        ownerId: r.owner_id,
+        t: r.t,
+        x: r.x,
+        y: r.y,
+        createdAt: r.created_at,
+        deletedAt: r.deleted_at,
+      }
   }
 }
 
@@ -116,7 +164,7 @@ export class SupabaseSyncBackend implements SyncBackend {
       )
     check(error)
 
-    if (table === 'strokes') {
+    if (table === 'strokes' || table === 'videos' || table === 'videoMarks') {
       // Changes 0 rows when the remote copy is already tombstoned.
       await inChunks(
         rows.filter((r) => r.deletedAt != null),

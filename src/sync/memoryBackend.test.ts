@@ -18,6 +18,14 @@ const stroke = (id: string, over: Partial<Record<string, unknown>> = {}) => ({
   id, boardId: 'b1', ownerId: 'U1', tool: 'pen', color: '#000', size: 4,
   points: [[0, 0, 0.5]], bbox: { minX: 0, minY: 0, maxX: 0, maxY: 0 }, createdAt: 1, deletedAt: null, ...over,
 })
+const video = (id: string, over: Partial<Record<string, unknown>> = {}) => ({
+  id, boardId: 'b1', ownerId: 'U1', provider: 'youtube', externalId: 'dQw4w9WgXcQ', title: 'V',
+  createdAt: 1, deletedAt: null, ...over,
+})
+const videoMark = (id: string, over: Partial<Record<string, unknown>> = {}) => ({
+  id, boardId: 'b1', videoId: 'v1', ownerId: 'U1', t: 12.3, x: 10, y: 20,
+  createdAt: 1, deletedAt: null, ...over,
+})
 
 describe('MemorySyncBackend', () => {
   it('push is idempotent for strokes, including tombstoned ones', async () => {
@@ -71,5 +79,28 @@ describe('MemorySyncBackend', () => {
     await b.uploadPdf('U1', 'f1', new Blob([new Uint8Array([7, 8, 9])]))
     const blob = await b.downloadPdf('U1', 'f1')
     expect(new Uint8Array(await blob.arrayBuffer())).toEqual(new Uint8Array([7, 8, 9]))
+  })
+
+  it.each([
+    ['videos', video] as const,
+    ['videoMarks', videoMark] as const,
+  ])('handles idempotent push, single tombstone, and incremental pull for %s', async (table, makeRow) => {
+    const b = new MemorySyncBackend()
+    await b.pushRows(table, [makeRow('r1')])
+    await b.pushRows(table, [makeRow('r1')])
+    const first = await b.pullSince(table, null)
+    expect(first.rows.map((r) => r.id)).toEqual(['r1'])
+    expect(first.rows[0].deletedAt).toBeNull()
+
+    await b.pushRows(table, [makeRow('r1', { deletedAt: 50 })])
+    await b.pushRows(table, [makeRow('r1', { deletedAt: 99 })]) // second tombstone ignored
+    await b.pushRows(table, [makeRow('r1', { deletedAt: null })]) // cannot un-delete
+    const rows = b.rows(table)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ id: 'r1', deletedAt: 50 })
+
+    const next = await b.pullSince(table, first.cursor)
+    expect(next.rows).toHaveLength(1)
+    expect(next.rows[0]).toMatchObject({ id: 'r1', deletedAt: 50 })
   })
 })

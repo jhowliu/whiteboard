@@ -43,8 +43,31 @@ export type PdfPage = {
   height: number
 }
 
+export type Video = {
+  id: string
+  boardId: string
+  ownerId: string | null
+  provider: 'youtube'
+  externalId: string
+  title: string
+  createdAt: number
+  deletedAt: number | null
+}
+
+export type VideoMark = {
+  id: string
+  boardId: string
+  videoId: string
+  ownerId: string | null
+  t: number
+  x: number
+  y: number
+  createdAt: number
+  deletedAt: number | null
+}
+
 /** Dexie table names that are synced, in the order they are pushed (parents before children). */
-export const SYNC_TABLES = ['boards', 'pdfFiles', 'pdfPages', 'strokes'] as const
+export const SYNC_TABLES = ['boards', 'pdfFiles', 'pdfPages', 'strokes', 'videos', 'videoMarks'] as const
 export type SyncTable = (typeof SYNC_TABLES)[number]
 
 /** One pending local write: the row `rowId` of `table` still has to be pushed. */
@@ -61,6 +84,8 @@ export type WhiteboardDB = Dexie & {
   strokes: EntityTable<StoredStroke, 'id'>
   pdfFiles: EntityTable<PdfFile, 'id'>
   pdfPages: EntityTable<PdfPage, 'id'>
+  videos: EntityTable<Video, 'id'>
+  videoMarks: EntityTable<VideoMark, 'id'>
   outbox: EntityTable<OutboxEntry, 'id'>
   syncState: EntityTable<SyncStateRow, 'table'>
 }
@@ -77,6 +102,11 @@ export function openDatabase(name: string): WhiteboardDB {
   database.version(2).stores({
     outbox: '++id, createdAt',
     syncState: 'table',
+  })
+  // Version 3 adds videos and timestamp marks; existing rows are untouched.
+  database.version(3).stores({
+    videos: 'id, boardId',
+    videoMarks: 'id, boardId',
   })
   return database
 }

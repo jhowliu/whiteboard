@@ -61,6 +61,31 @@ const stroke = (over: Record<string, unknown> = {}) => ({
   points: [[1, 2, 0.5]], bbox: { minX: 1, minY: 2, maxX: 3, maxY: 4 }, createdAt: 10, deletedAt: null, ...over,
 })
 
+const video = (over: Record<string, unknown> = {}) => ({
+  id: 'v1',
+  boardId: 'b1',
+  ownerId: 'U1',
+  provider: 'youtube',
+  externalId: 'dQw4w9WgXcQ',
+  title: 'Lecture 1',
+  createdAt: 100,
+  deletedAt: null,
+  ...over,
+})
+
+const videoMark = (over: Record<string, unknown> = {}) => ({
+  id: 'm1',
+  boardId: 'b1',
+  videoId: 'v1',
+  ownerId: 'U1',
+  t: 12.3,
+  x: -40.5,
+  y: 120.25,
+  createdAt: 200,
+  deletedAt: null,
+  ...over,
+})
+
 describe('SupabaseSyncBackend.pushRows', () => {
   it('upserts snake_case stroke rows as insert-or-ignore', async () => {
     const { client, chains } = fakeClient()
@@ -121,6 +146,98 @@ describe('SupabaseSyncBackend.pushRows', () => {
       { id: 'p1', board_id: 'b1', pdf_id: 'f1', owner_id: 'U1', page_index: 2, x: 0, y: 1, width: 3, height: 4 },
     ])
     expect(has(pages, 'upsert', (a) => (a[1] as { ignoreDuplicates?: boolean }).ignoreDuplicates === true)).toBe(true)
+  })
+
+  it('upserts snake_case video rows to videos as insert-or-ignore without an update for live rows', async () => {
+    const { client, chains } = fakeClient()
+    await new SupabaseSyncBackend(client).pushRows('videos', [video()])
+    const chain = chains.find((c) => has(c, 'upsert'))!
+    expect(chain.table).toBe('videos')
+    const [rows, options] = chain.ops.find(([n]) => n === 'upsert')![1] as [Record<string, unknown>[], unknown]
+    expect(options).toEqual({ onConflict: 'id', ignoreDuplicates: true })
+    expect(rows).toEqual([
+      {
+        id: 'v1',
+        board_id: 'b1',
+        owner_id: 'U1',
+        provider: 'youtube',
+        external_id: 'dQw4w9WgXcQ',
+        title: 'Lecture 1',
+        created_at: 100,
+        deleted_at: null,
+      },
+    ])
+    expect(chains.some((c) => has(c, 'update'))).toBe(false)
+  })
+
+  it('sends a guarded tombstone update for a deleted video (including deletedAt = 0)', async () => {
+    for (const deletedAt of [99, 0]) {
+      const { client, chains } = fakeClient()
+      await new SupabaseSyncBackend(client).pushRows('videos', [video({ deletedAt })])
+      const upd = chains.find((c) => has(c, 'update'))!
+      expect(upd.table).toBe('videos')
+      expect(upd.ops.find(([n]) => n === 'update')![1][0]).toEqual({ deleted_at: deletedAt })
+      expect(has(upd, 'eq', (a) => a[0] === 'id' && a[1] === 'v1')).toBe(true)
+      expect(has(upd, 'is', (a) => a[0] === 'deleted_at' && a[1] === null)).toBe(true)
+    }
+  })
+
+  it('upserts snake_case videoMark rows to video_marks as insert-or-ignore without an update for live rows', async () => {
+    const { client, chains } = fakeClient()
+    await new SupabaseSyncBackend(client).pushRows('videoMarks', [videoMark()])
+    const chain = chains.find((c) => has(c, 'upsert'))!
+    expect(chain.table).toBe('video_marks')
+    const [rows, options] = chain.ops.find(([n]) => n === 'upsert')![1] as [Record<string, unknown>[], unknown]
+    expect(options).toEqual({ onConflict: 'id', ignoreDuplicates: true })
+    expect(rows).toEqual([
+      {
+        id: 'm1',
+        board_id: 'b1',
+        video_id: 'v1',
+        owner_id: 'U1',
+        t: 12.3,
+        x: -40.5,
+        y: 120.25,
+        created_at: 200,
+        deleted_at: null,
+      },
+    ])
+    expect(chains.some((c) => has(c, 'update'))).toBe(false)
+  })
+
+  it('sends a guarded tombstone update for a deleted videoMark (including deletedAt = 0)', async () => {
+    for (const deletedAt of [55, 0]) {
+      const { client, chains } = fakeClient()
+      await new SupabaseSyncBackend(client).pushRows('videoMarks', [videoMark({ deletedAt })])
+      const upd = chains.find((c) => has(c, 'update'))!
+      expect(upd.table).toBe('video_marks')
+      expect(upd.ops.find(([n]) => n === 'update')![1][0]).toEqual({ deleted_at: deletedAt })
+      expect(has(upd, 'eq', (a) => a[0] === 'id' && a[1] === 'm1')).toBe(true)
+      expect(has(upd, 'is', (a) => a[0] === 'deleted_at' && a[1] === null)).toBe(true)
+    }
+  })
+})
+
+describe('SupabaseSyncBackend videos and videoMarks round-trip', () => {
+  const ts = '2026-11-26T00:00:00.123456+00:00'
+
+  it.each([
+    ['videos', 'videos', video()],
+    ['videos', 'videos', video({ deletedAt: 500, title: '' })],
+    ['videoMarks', 'video_marks', videoMark()],
+    ['videoMarks', 'video_marks', videoMark({ t: 0, x: 0, y: 0, deletedAt: 500 })],
+  ] as const)('fromRemote(toRemote(row)) equals the row for %s', async (table, remoteTable, row) => {
+    const pushFake = fakeClient()
+    await new SupabaseSyncBackend(pushFake.client).pushRows(table, [row])
+    const upsertChain = pushFake.chains.find((c) => has(c, 'upsert'))!
+    expect(upsertChain.table).toBe(remoteTable)
+    const [remoteRows] = upsertChain.ops.find(([n]) => n === 'upsert')![1] as [Record<string, unknown>[]]
+
+    const pullFake = fakeClient(() => remoteRows.map((r) => ({ ...r, synced_at: ts })))
+    const out = await new SupabaseSyncBackend(pullFake.client).pullSince(table, null)
+    expect(pullFake.chains[0].table).toBe(remoteTable)
+    expect(out.rows).toEqual([row])
+    expect(out.cursor).toEqual({ syncedAt: ts, id: row.id })
   })
 })
 
