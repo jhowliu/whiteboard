@@ -3,7 +3,18 @@ import { PdfRenderer } from './pdfRenderer.ts'
 import { quantizeRenderScale } from './pdfLayout.ts'
 import { strokesHitByEraser } from './eraser.ts'
 import { createHistory, type HistoryOps } from './history.ts'
-import { type Corner, cornerAndAnchor, resizeFactor, scaleBBox, strokesInLasso, type StrokeTransform, transformStroke, unionBBox } from './lasso.ts'
+import {
+  type Corner,
+  cornerAndAnchor,
+  marksInLasso,
+  resizeFactor,
+  scaleBBox,
+  strokesInLasso,
+  type StrokeTransform,
+  transformMark,
+  transformStroke,
+  unionBBox,
+} from './lasso.ts'
 import { applyCamera, HIGHLIGHTER_ALPHA, PAPER_COLOR, strokePath } from './render.ts'
 import { type MinimapFit } from './minimap.ts'
 import { type BBox, bboxIntersects, computeBBox, DEFAULT_PEN, type Stroke, type StrokePoint, type Tool } from './stroke.ts'
@@ -26,8 +37,8 @@ function isDrawTool(tool: ActiveTool): tool is Tool {
   return tool === 'pen' || tool === 'highlighter'
 }
 
-/** The selected strokes and the union of their world bboxes. Null when nothing is selected. */
-export type Selection = { ids: string[]; bbox: BBox }
+/** The selected strokes and video marks, and the union of their world boxes. Null when nothing is selected. */
+export type Selection = { ids: string[]; markIds: string[]; bbox: BBox }
 
 export type ToolState = { tool: ActiveTool; color: string; size: number }
 
@@ -93,7 +104,7 @@ export type EngineOptions = {
    * added. Storage applies one such call in one transaction.
    */
   onStrokeChange?: (change: { removed: string[]; added: Stroke[] }) => void
-  /** Called for every mark add, erase, undo and redo. */
+  /** Called for every mark add, erase, move, resize, undo and redo. */
   onMarkChange?: (change: { removed: string[]; added: EngineVideoMark[] }) => void
   /** Called when a tap (< 4 screen px) lands on a video timestamp mark. */
   onMarkTap?: (mark: EngineVideoMark) => void
@@ -305,7 +316,9 @@ export class Engine {
       pdfPages: this.pdfPages.map((p) => ({ ...p, rendered: this.pdfRenderer?.hasBitmap(p) ?? false })),
       tool: this.toolState.tool,
       fingerDraw: this.fingerDraw,
-      selection: this.selection ? { ids: [...this.selection.ids], bbox: { ...this.selection.bbox } } : null,
+      selection: this.selection
+        ? { ids: [...this.selection.ids], markIds: [...this.selection.markIds], bbox: { ...this.selection.bbox } }
+        : null,
       viewport: this.viewportRect(),
       minimap: this.minimapView ? { ...this.minimapView } : null,
       strokes: this.strokes.map((s) => ({
@@ -362,15 +375,20 @@ export class Engine {
     this.emit()
   }
 
-  /** Selects the strokes with `ids`; an empty list selects nothing. */
-  private selectIds(ids: string[]): void {
-    if (ids.length === 0) {
+  /** Selects the strokes with `ids` and video marks with `markIds`; empty lists select nothing. */
+  private selectIds(ids: string[], markIds: string[] = []): void {
+    if (ids.length === 0 && markIds.length === 0) {
       this.setSelection(null)
       return
     }
-    const set = new Set(ids)
-    const bbox = unionBBox(this.strokes.filter((s) => set.has(s.id)).map((s) => s.bbox))
-    this.setSelection(bbox ? { ids: [...ids], bbox } : null)
+    const strokeSet = new Set(ids)
+    const markSet = new Set(markIds)
+    const boxes: BBox[] = [
+      ...this.strokes.filter((s) => strokeSet.has(s.id)).map((s) => s.bbox),
+      ...this.videoMarks.filter((m) => markSet.has(m.id)).map((m) => markRect(m)),
+    ]
+    const bbox = unionBBox(boxes)
+    this.setSelection(bbox ? { ids: [...ids], markIds: [...markIds], bbox } : null)
   }
 
   /** Screen rectangle of a world box, padded by SELECTION_PAD_PX. */
@@ -439,7 +457,7 @@ export class Engine {
 
   /** Default world anchor for a new timestamp mark (24 px from canvas left, vertically centred, stacked below occupied marks). */
   markAnchor(): Point {
-    const start = screenToWorld(this.camera, { x: MARK_ANCHOR_LEFT_PX, y: this.cssHeight / 2 })
+    const start = screenToWorld(this.camera, { x: MARK_ANCHOR_LEFT_PX, y: Math.round(this.cssHeight / 2) })
     return findFreeMarkAnchor(this.videoMarks, start)
   }
 
@@ -871,7 +889,8 @@ export class Engine {
       this.setSelection(null)
       return
     }
-    this.selectIds(strokesInLasso(this.strokes, draft.points.map(([x, y]) => ({ x, y }))))
+    const polygon = draft.points.map(([x, y]) => ({ x, y }))
+    this.selectIds(strokesInLasso(this.strokes, polygon), marksInLasso(this.videoMarks, polygon))
   }
 
   /** Moves the selection by the pointer delta. A move shorter than MOVE_MIN_PX changes nothing. */
@@ -879,7 +898,8 @@ export class Engine {
     const dxPx = draft.at.x - draft.down.x
     const dyPx = draft.at.y - draft.down.y
     if (Math.hypot(dxPx, dyPx) < MOVE_MIN_PX) {
-      this.requestLive() // the strokes come back on the committed layer
+      this.committedDirty = true // the selected strokes and marks come back on the committed layer
+      this.requestLive()
       return
     }
     this.replaceSelected({ dx: dxPx / this.camera.zoom, dy: dyPx / this.camera.zoom })
@@ -889,6 +909,7 @@ export class Engine {
   private finishResize(draft: Draft): void {
     const r = this.resizeScale(draft)
     if (!r || Math.abs(r.scale - 1) < SCALE_EPS) {
+      this.committedDirty = true
       this.requestLive()
       return
     }
@@ -896,29 +917,47 @@ export class Engine {
   }
 
   /**
-   * Replaces the selected strokes with transformed copies that have new ids: tombstones the old ones and commits
-   * the copies. The selection follows the copies. One transform is one history entry.
+   * Replaces the selected strokes and video marks with transformed copies that have new ids: tombstones the old ones
+   * and commits the copies. The selection follows the copies. One transform is one history entry.
    */
   private replaceSelected(t: StrokeTransform): void {
-    const ids = new Set(this.selection?.ids ?? [])
-    const before = this.strokes.filter((s) => ids.has(s.id))
-    if (before.length === 0) {
+    const strokeIds = new Set(this.selection?.ids ?? [])
+    const markIds = new Set(this.selection?.markIds ?? [])
+    const beforeStrokes = this.strokes.filter((s) => strokeIds.has(s.id))
+    const beforeMarks = this.videoMarks.filter((m) => markIds.has(m.id))
+    if (beforeStrokes.length === 0 && beforeMarks.length === 0) {
+      this.committedDirty = true
       this.requestLive()
       return
     }
     const now = Date.now()
-    const after: Stroke[] = before.map((s) => ({
+    const afterStrokes: Stroke[] = beforeStrokes.map((s) => ({
       ...transformStroke(s, t),
       id: crypto.randomUUID(),
       createdAt: now,
     }))
-    this.dropStrokes(before.map((s) => s.id))
-    this.strokes.push(...after)
+    const afterMarks: EngineVideoMark[] = beforeMarks.map((m) => ({
+      ...transformMark(m, t),
+      id: crypto.randomUUID(),
+      createdAt: now,
+    }))
+    if (beforeStrokes.length > 0) {
+      this.dropStrokes(beforeStrokes.map((s) => s.id))
+      this.strokes.push(...afterStrokes)
+      this.options.onStrokeChange?.({ removed: beforeStrokes.map((s) => s.id), added: afterStrokes })
+    }
+    if (beforeMarks.length > 0) {
+      this.dropMarks(beforeMarks.map((m) => m.id))
+      this.videoMarks.push(...afterMarks)
+      this.options.onMarkChange?.({ removed: beforeMarks.map((m) => m.id), added: afterMarks })
+    }
     this.committedDirty = true
-    this.options.onStrokeChange?.({ removed: before.map((s) => s.id), added: after })
-    this.history.recordTransform(before, after)
+    this.history.recordTransform(beforeStrokes, afterStrokes, beforeMarks, afterMarks)
     this.notifyHistory()
-    this.selectIds(after.map((s) => s.id))
+    this.selectIds(
+      afterStrokes.map((s) => s.id),
+      afterMarks.map((m) => m.id),
+    )
   }
 
   private setCamera(camera: Camera): void {
@@ -1025,9 +1064,10 @@ export class Engine {
     ctx.clearRect(0, 0, this.committed.width, this.committed.height)
     applyCamera(ctx, this.camera, this.dpr)
     const view = this.viewportRect()
-    // While a selection is being moved or resized, its strokes are drawn on the live layer instead.
+    // While a selection is being moved or resized, its strokes and marks are drawn on the live layer instead.
     const dragging = this.draft?.mode === 'move' || this.draft?.mode === 'resize'
     const moving = dragging ? new Set(this.selection?.ids) : null
+    const movingMarks = dragging ? new Set(this.selection?.markIds) : null
     const ordered = [
       ...this.strokes.filter((s) => s.tool === 'highlighter'),
       ...this.strokes.filter((s) => s.tool !== 'highlighter'),
@@ -1057,21 +1097,31 @@ export class Engine {
       ctx.textAlign = 'left'
       ctx.textBaseline = 'middle'
       for (const mark of this.videoMarks) {
+        if (movingMarks?.has(mark.id)) continue
         const rect = markRect(mark)
         if (!bboxIntersects(rect, view)) continue
-        const label = formatTimestamp(mark.t)
-        const opacity = this.liveVideoIds.has(mark.videoId) ? 1 : MARK_REMOVED_ALPHA
-        const w = rect.maxX - rect.minX
-        const h = rect.maxY - rect.minY
-        ctx.fillStyle = accent
-        ctx.globalAlpha = MARK_FILL_ALPHA * opacity
-        drawRoundedRect(ctx, rect.minX, rect.minY, w, h, MARK_RADIUS)
-        ctx.fill()
-        ctx.globalAlpha = opacity
-        ctx.fillText(`▶ ${label}`, rect.minX + 8, mark.y)
+        this.drawVideoMark(ctx, mark, accent)
       }
     }
     ctx.globalAlpha = 1
+  }
+
+  private drawVideoMark(
+    ctx: CanvasRenderingContext2D,
+    mark: Pick<EngineVideoMark, 'videoId' | 't' | 'x' | 'y'>,
+    accent: string,
+  ): void {
+    const rect = markRect(mark)
+    const label = formatTimestamp(mark.t)
+    const opacity = this.liveVideoIds.has(mark.videoId) ? 1 : MARK_REMOVED_ALPHA
+    const w = rect.maxX - rect.minX
+    const h = rect.maxY - rect.minY
+    ctx.fillStyle = accent
+    ctx.globalAlpha = MARK_FILL_ALPHA * opacity
+    drawRoundedRect(ctx, rect.minX, rect.minY, w, h, MARK_RADIUS)
+    ctx.fill()
+    ctx.globalAlpha = opacity
+    ctx.fillText(`▶ ${label}`, rect.minX + 8, mark.y)
   }
 
   private renderLive(): void {
@@ -1090,6 +1140,17 @@ export class Engine {
       const ids = new Set(this.selection.ids)
       for (const s of this.strokes) {
         if (ids.has(s.id)) this.fillStroke(ctx, transformStroke(s, transform))
+      }
+      if (this.selection.markIds.length > 0) {
+        const markIds = new Set(this.selection.markIds)
+        const accent = this.accentColor()
+        ctx.font = '13px system-ui, -apple-system, sans-serif'
+        ctx.textAlign = 'left'
+        ctx.textBaseline = 'middle'
+        for (const m of this.videoMarks) {
+          if (markIds.has(m.id)) this.drawVideoMark(ctx, transformMark(m, transform), accent)
+        }
+        ctx.globalAlpha = 1
       }
     }
     // Overlays are drawn in screen pixels, so their width does not scale with the zoom.
@@ -1151,12 +1212,21 @@ export class Engine {
 
   /** The selection's world box as it is drawn now: moved or scaled while a drag is in progress. */
   private previewBBox(): BBox | null {
-    const b = this.selection?.bbox
-    if (!b) return null
+    const sel = this.selection
+    if (!sel) return null
     const t = this.draftTransform()
-    if (!t) return b
-    if ('scale' in t) return scaleBBox(b, t.scale, t.anchor)
-    return { minX: b.minX + t.dx, minY: b.minY + t.dy, maxX: b.maxX + t.dx, maxY: b.maxY + t.dy }
+    if (!t) return sel.bbox
+    if ('scale' in t) {
+      if (sel.markIds.length === 0) return scaleBBox(sel.bbox, t.scale, t.anchor)
+      const strokeIds = new Set(sel.ids)
+      const markIds = new Set(sel.markIds)
+      const boxes: BBox[] = [
+        ...this.strokes.filter((s) => strokeIds.has(s.id)).map((s) => scaleBBox(s.bbox, t.scale, t.anchor)),
+        ...this.videoMarks.filter((m) => markIds.has(m.id)).map((m) => markRect(transformMark(m, t))),
+      ]
+      return unionBBox(boxes)
+    }
+    return { minX: sel.bbox.minX + t.dx, minY: sel.bbox.minY + t.dy, maxX: sel.bbox.maxX + t.dx, maxY: sel.bbox.maxY + t.dy }
   }
 
   private fillStroke(ctx: CanvasRenderingContext2D, stroke: { points: StrokePoint[]; size: number; color: string; simulatePressure: boolean; tool?: Tool }): void {

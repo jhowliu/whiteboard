@@ -1,7 +1,7 @@
 // The app's single sync engine and its triggers. `startSync()` is called once from main.tsx;
 // tests and local-only mode (no Supabase config) never start it.
 import { useSyncExternalStore } from 'react'
-import { db, getPdfBlob } from '../storage/index.ts'
+import { db, getPdfBlob, onLocalWrite } from '../storage/index.ts'
 import { getSession, subscribe as subscribeAuth } from './auth.ts'
 import { createSyncEngine, type SyncEngine, type SyncStatus } from './engine.ts'
 import { supabase } from './supabaseClient.ts'
@@ -25,6 +25,15 @@ function getEngine(): SyncEngine | null {
 }
 
 let started = false
+let inFlightWrites = 0
+const localListeners = new Set<() => void>()
+let cachedBase: SyncStatus | null = null
+let cachedInFlight = 0
+let cachedStatus: SyncStatus = LOCAL_ONLY
+
+function emitLocal(): void {
+  for (const l of [...localListeners]) l()
+}
 
 /** Syncs on sign-in, when the browser comes online, every 30 s while visible, and 2 s after the last local write. */
 export function startSync(): void {
@@ -56,16 +65,40 @@ export function startSync(): void {
     setTimeout(() => void e.refreshPending(), 0)
   })
 
+  // Keep `pending` non-zero from the moment a local write starts until its transaction commits
+  // and `refreshPending()` has read the new outbox count, so observers never see a false `pending: 0`.
+  onLocalWrite((done) => {
+    inFlightWrites++
+    emitLocal()
+    void done.catch(() => undefined).finally(() => {
+      void e.refreshPending().finally(() => {
+        inFlightWrites--
+        emitLocal()
+      })
+    })
+  })
+
   void e.refreshPending()
   run()
 }
 
 export function getSyncStatus(): SyncStatus {
-  return engine?.getStatus() ?? LOCAL_ONLY
+  const base = engine?.getStatus()
+  if (!base) return LOCAL_ONLY
+  if (base === cachedBase && inFlightWrites === cachedInFlight) return cachedStatus
+  cachedBase = base
+  cachedInFlight = inFlightWrites
+  cachedStatus = inFlightWrites > 0 ? { ...base, pending: Math.max(base.pending, inFlightWrites) } : base
+  return cachedStatus
 }
 
 function subscribeSync(listener: () => void): () => void {
-  return getEngine()?.subscribe(listener) ?? (() => {})
+  const unsubEngine = getEngine()?.subscribe(listener) ?? (() => {})
+  localListeners.add(listener)
+  return () => {
+    unsubEngine()
+    localListeners.delete(listener)
+  }
 }
 
 export function useSyncStatus(): SyncStatus {

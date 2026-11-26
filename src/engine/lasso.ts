@@ -1,4 +1,5 @@
 import { type BBox, computeBBox, type Stroke, type StrokePoint } from './stroke.ts'
+import { type EngineVideoMark, markRect } from './videoMark.ts'
 
 // Pure lasso geometry. Everything is in world coordinates.
 
@@ -28,6 +29,24 @@ export function strokesInLasso(strokes: readonly Pick<Stroke, 'id' | 'points'>[]
     let inside = 0
     for (const [x, y] of stroke.points) if (pointInPolygon({ x, y }, polygon)) inside++
     if (inside * 2 >= n) ids.push(stroke.id)
+  }
+  return ids
+}
+
+/**
+ * Ids of the video marks selected by the lasso, in input order. A mark is selected when the centre of its
+ * `markRect` lies inside the polygon. A polygon with fewer than 3 points selects nothing.
+ */
+export function marksInLasso(
+  marks: readonly Pick<EngineVideoMark, 'id' | 't' | 'x' | 'y'>[],
+  polygon: readonly LassoPoint[],
+): string[] {
+  if (polygon.length < 3) return []
+  const ids: string[] = []
+  for (const mark of marks) {
+    const rect = markRect(mark)
+    const centre = { x: (rect.minX + rect.maxX) / 2, y: (rect.minY + rect.maxY) / 2 }
+    if (pointInPolygon(centre, polygon)) ids.push(mark.id)
   }
   return ids
 }
@@ -85,6 +104,31 @@ export function transformStroke(
     return { ...scaled, size: stroke.size * scale }
   }
   return mapStroke(stroke, (x, y) => ({ x: x + t.dx, y: y + t.dy }))
+}
+
+/**
+ * Moves or scales a video mark's anchor. `videoId` and `t` are kept (marks keep their rendered size on resize).
+ * The input is not changed.
+ */
+export function transformMark(
+  mark: Pick<EngineVideoMark, 'videoId' | 't' | 'x' | 'y'>,
+  t: StrokeTransform,
+): Pick<EngineVideoMark, 'videoId' | 't' | 'x' | 'y'> {
+  if ('scale' in t) {
+    const { scale, anchor } = t
+    return {
+      videoId: mark.videoId,
+      t: mark.t,
+      x: anchor.x + (mark.x - anchor.x) * scale,
+      y: anchor.y + (mark.y - anchor.y) * scale,
+    }
+  }
+  return {
+    videoId: mark.videoId,
+    t: mark.t,
+    x: mark.x + t.dx,
+    y: mark.y + t.dy,
+  }
 }
 
 /** Lowest and highest factor a resize drag can reach. */
