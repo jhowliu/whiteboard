@@ -1,6 +1,6 @@
-import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react'
+import { type FormEvent, type Ref, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { addVideo, removeVideo, type Video } from '../storage/index.ts'
-import { PlusIcon, TrashIcon } from '../ui/icons.tsx'
+import { ClockIcon, PlusIcon, TrashIcon } from '../ui/icons.tsx'
 import { createPlayer, loadYouTubeApi, type VideoPlayer } from './youtube.ts'
 import { parseYouTubeUrl } from './youtubeUrl.ts'
 
@@ -12,7 +12,12 @@ type PendingAdd = {
   start: number
 }
 
+export type VideoPanelHandle = {
+  jumpTo(videoId: string, t: number): void
+}
+
 type VideoPanelProps = {
+  ref?: Ref<VideoPanelHandle>
   boardId: string
   open: boolean
   loaded: boolean
@@ -21,9 +26,11 @@ type VideoPanelProps = {
   onVideoAdded: (video: Video) => void
   onVideoRemoved: (id: string) => void
   onSelectVideo: (id: string) => void
+  onDropMark: (videoId: string, t: number) => void
 }
 
 export default function VideoPanel({
+  ref,
   boardId,
   open,
   loaded,
@@ -32,10 +39,13 @@ export default function VideoPanel({
   onVideoAdded,
   onVideoRemoved,
   onSelectVideo,
+  onDropMark,
 }: VideoPanelProps) {
   const slotRef = useRef<HTMLDivElement>(null)
   const playerRef = useRef<VideoPlayer | null>(null)
   const mountedKeyRef = useRef<string | null>(null)
+  const readyKeyRef = useRef<string | null>(null)
+  const pendingJumpRef = useRef<{ videoId: string; t: number } | null>(null)
   const nextRequestIdRef = useRef(1)
   const onVideoAddedRef = useRef(onVideoAdded)
   useEffect(() => {
@@ -45,6 +55,7 @@ export default function VideoPanel({
   const [url, setUrl] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [pendingAdd, setPendingAdd] = useState<PendingAdd | null>(null)
+  const [readyKey, setReadyKey] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [offline, setOffline] = useState(false)
 
@@ -52,6 +63,7 @@ export default function VideoPanel({
     playerRef.current?.destroy()
     playerRef.current = null
     mountedKeyRef.current = null
+    readyKeyRef.current = null
     slotRef.current?.replaceChildren()
   }, [])
 
@@ -63,6 +75,26 @@ export default function VideoPanel({
     if (!open) playerRef.current?.pause()
   }, [open])
 
+  useImperativeHandle(
+    ref,
+    () => ({
+      jumpTo(videoId: string, t: number) {
+        setShowForm(false)
+        setError(null)
+        const key = `stored:${videoId}`
+        if (mountedKeyRef.current === key && readyKeyRef.current === key && playerRef.current) {
+          pendingJumpRef.current = null
+          playerRef.current.seekTo(t)
+          playerRef.current.play()
+          return
+        }
+        setReadyKey(null)
+        pendingJumpRef.current = { videoId, t }
+      },
+    }),
+    [],
+  )
+
   const activeVideo = activeId ? (videos.find((v) => v.id === activeId) ?? null) : null
   const showingForm = loaded && !pendingAdd && (videos.length === 0 || showForm)
 
@@ -72,8 +104,10 @@ export default function VideoPanel({
     : activeVideo
       ? `stored:${activeVideo.id}`
       : null
+  const desiredVideoId = activeVideo ? activeVideo.id : null
   const desiredExternalId = pendingAdd ? pendingAdd.externalId : activeVideo ? activeVideo.externalId : null
   const desiredStart = pendingAdd ? pendingAdd.start : 0
+  const playerReady = readyKey !== null && desiredKey !== null && readyKey === desiredKey
 
   useEffect(() => {
     if (!desiredKey || !desiredExternalId || !desiredKind) {
@@ -92,6 +126,7 @@ export default function VideoPanel({
       } catch {
         if (cancelled) return
         setOffline(true)
+        setReadyKey(null)
         if (desiredKind === 'pending') {
           setPendingAdd(null)
         }
@@ -110,25 +145,41 @@ export default function VideoPanel({
         { externalId: desiredExternalId, start: desiredStart },
         {
           onReady: ({ title }) => {
-            if (cancelled || desiredKind !== 'pending') return
-            void addVideo(boardId, {
-              externalId: desiredExternalId,
-              title: title.trim() || desiredExternalId,
-            }).then((created) => {
-              if (cancelled) return
-              // Adopt the running player under the stored video's key so re-render does not recreate it.
-              mountedKeyRef.current = `stored:${created.id}`
-              setPendingAdd(null)
-              setShowForm(false)
-              setUrl('')
-              setError(null)
-              onVideoAddedRef.current(created)
-            })
+            if (cancelled) return
+            if (desiredKind === 'pending') {
+              void addVideo(boardId, {
+                externalId: desiredExternalId,
+                title: title.trim() || desiredExternalId,
+              }).then((created) => {
+                if (cancelled) return
+                const storedKey = `stored:${created.id}`
+                // Adopt the running player under the stored video's key so re-render does not recreate it.
+                mountedKeyRef.current = storedKey
+                readyKeyRef.current = storedKey
+                setReadyKey(storedKey)
+                setPendingAdd(null)
+                setShowForm(false)
+                setUrl('')
+                setError(null)
+                onVideoAddedRef.current(created)
+              })
+              return
+            }
+            readyKeyRef.current = desiredKey
+            setReadyKey(desiredKey)
+            const jump = pendingJumpRef.current
+            if (jump && jump.videoId === desiredVideoId) {
+              pendingJumpRef.current = null
+              playerRef.current?.seekTo(jump.t)
+              playerRef.current?.play()
+            }
           },
           onError: (code) => {
             if (cancelled) return
             if (EMBED_ERROR_CODES.has(code)) {
               destroyPlayer()
+              setReadyKey(null)
+              pendingJumpRef.current = null
               setError('這支影片無法嵌入播放')
               if (desiredKind === 'pending') {
                 setPendingAdd(null)
@@ -145,7 +196,7 @@ export default function VideoPanel({
     return () => {
       cancelled = true
     }
-  }, [open, showForm, boardId, desiredKey, desiredExternalId, desiredStart, desiredKind, destroyPlayer])
+  }, [open, showForm, boardId, desiredKey, desiredVideoId, desiredExternalId, desiredStart, desiredKind, destroyPlayer])
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
@@ -154,6 +205,8 @@ export default function VideoPanel({
       setError('這不是 YouTube 影片網址')
       return
     }
+    pendingJumpRef.current = null
+    setReadyKey(null)
     setError(null)
     setOffline(false)
     setShowForm(false)
@@ -174,10 +227,19 @@ export default function VideoPanel({
   const handleRemove = async () => {
     if (!activeId) return
     const removingId = activeId
+    pendingJumpRef.current = null
+    setReadyKey(null)
     await removeVideo(removingId)
     setError(null)
     if (videos.length <= 1) setOffline(false)
     onVideoRemoved(removingId)
+  }
+
+  const handleDropMark = () => {
+    const player = playerRef.current
+    if (!player || !playerReady || !activeId) return
+    const t = Math.round(player.currentTime() * 10) / 10
+    onDropMark(activeId, t)
   }
 
   const showControls = loaded && !showingForm && videos.length > 0
@@ -249,6 +311,8 @@ export default function VideoPanel({
               aria-label="選擇影片"
               value={activeId ?? ''}
               onChange={(e) => {
+                pendingJumpRef.current = null
+                setReadyKey(null)
                 setError(null)
                 onSelectVideo(e.target.value)
               }}
@@ -261,6 +325,17 @@ export default function VideoPanel({
             </select>
           )}
           <div className="video-controls-actions">
+            <button
+              type="button"
+              className="video-control-button"
+              data-testid="video-mark"
+              aria-label="插入時間戳"
+              title="插入時間戳"
+              disabled={!playerReady || !activeId}
+              onClick={handleDropMark}
+            >
+              <ClockIcon />
+            </button>
             <button
               type="button"
               className="video-control-button"

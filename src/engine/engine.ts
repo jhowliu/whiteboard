@@ -7,6 +7,17 @@ import { type Corner, cornerAndAnchor, resizeFactor, scaleBBox, strokesInLasso, 
 import { applyCamera, HIGHLIGHTER_ALPHA, PAPER_COLOR, strokePath } from './render.ts'
 import { type MinimapFit } from './minimap.ts'
 import { type BBox, bboxIntersects, computeBBox, DEFAULT_PEN, type Stroke, type StrokePoint, type Tool } from './stroke.ts'
+import {
+  type EngineVideoMark,
+  findFreeMarkAnchor,
+  formatTimestamp,
+  MARK_RADIUS,
+  markAt,
+  markRect,
+  marksHitByEraser,
+} from './videoMark.ts'
+
+export type { EngineVideoMark }
 
 export type ActiveTool = Tool | 'eraser' | 'lasso'
 
@@ -53,6 +64,13 @@ export type EngineSnapshot = {
     bbox: BBox
     points: StrokePoint[]
   }[]
+  videoMarks: {
+    id: string
+    videoId: string
+    t: number
+    x: number
+    y: number
+  }[]
 }
 
 /** Eraser radius in CSS px on screen. */
@@ -61,6 +79,7 @@ const ERASER_RADIUS_PX = 10
 export type EngineOptions = {
   boardId?: string | null
   strokes?: Stroke[]
+  videoMarks?: EngineVideoMark[]
   pdfPages?: EnginePdfPage[]
   loadPdfBlob?: (pdfId: string) => Promise<Blob | undefined>
   camera?: Camera
@@ -74,6 +93,10 @@ export type EngineOptions = {
    * added. Storage applies one such call in one transaction.
    */
   onStrokeChange?: (change: { removed: string[]; added: Stroke[] }) => void
+  /** Called for every mark add, erase, undo and redo. */
+  onMarkChange?: (change: { removed: string[]; added: EngineVideoMark[] }) => void
+  /** Called when a tap (< 4 screen px) lands on a video timestamp mark. */
+  onMarkTap?: (mark: EngineVideoMark) => void
   /** Called when undo/redo availability may have changed. */
   onHistoryChange?: (state: { canUndo: boolean; canRedo: boolean }) => void
   /** Initial finger-drawing state (touch draws instead of panning). */
@@ -94,6 +117,9 @@ type Draft = {
   color: string
   size: number
   erased: Stroke[]
+  erasedMarks: EngineVideoMark[]
+  /** Mark under the down point for a potential tap-to-jump gesture, or null. */
+  tappedMark: EngineVideoMark | null
   finger: boolean
   /** Screen point where the pointer went down. */
   down: Point
@@ -103,6 +129,13 @@ type Draft = {
   handle: Corner | null
   /** The farthest the pointer has been from `down` (CSS px). A closed lasso loop still counts as a loop. */
   reach: number
+}
+
+type TouchMarkTap = {
+  pointerId: number
+  down: Point
+  reach: number
+  mark: EngineVideoMark
 }
 
 const MOUSE_PRESSURE = 0.5
@@ -135,6 +168,20 @@ const HANDLE_CORNERS: readonly Corner[] = ['nw', 'ne', 'sw', 'se']
 /** A resize whose factor is this close to 1 changes nothing. */
 const SCALE_EPS = 0.001
 const DEFAULT_PAPER = '#ffffff'
+const MARK_FILL_ALPHA = 0.12
+const MARK_REMOVED_ALPHA = 0.4
+const MARK_ANCHOR_LEFT_PX = 24
+
+function drawRoundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
+  const radius = Math.min(r, w / 2, h / 2)
+  ctx.beginPath()
+  ctx.moveTo(x + radius, y)
+  ctx.arcTo(x + w, y, x + w, y + h, radius)
+  ctx.arcTo(x + w, y + h, x, y + h, radius)
+  ctx.arcTo(x, y + h, x, y, radius)
+  ctx.arcTo(x, y, x + w, y, radius)
+  ctx.closePath()
+}
 
 function makeCanvas(): HTMLCanvasElement {
   const canvas = document.createElement('canvas')
@@ -164,9 +211,12 @@ export class Engine {
   private readonly live = makeCanvas()
   private camera: Camera = { x: 0, y: 0, zoom: 1 }
   private strokes: Stroke[] = []
+  private videoMarks: EngineVideoMark[] = []
+  private liveVideoIds = new Set<string>()
   private readonly options: EngineOptions
   private readonly paths = new Map<string, Path2D>()
   private draft: Draft | null = null
+  private touchTap: TouchMarkTap | null = null
   private toolState: ToolState = { tool: 'pen', color: DEFAULT_PEN.color, size: DEFAULT_PEN.size }
   private readonly history = createHistory()
   private fingerDraw = true
@@ -192,6 +242,7 @@ export class Engine {
     this.fingerDraw = options.fingerDraw ?? true
     if (options.camera) this.camera = { ...options.camera }
     if (options.strokes) this.strokes = [...options.strokes]
+    if (options.videoMarks) this.videoMarks = [...options.videoMarks]
     this.committed.dataset.layer = 'committed'
     this.live.dataset.layer = 'live'
     this.pdfLayer.dataset.layer = 'pdf'
@@ -224,6 +275,7 @@ export class Engine {
   destroy(): void {
     this.listeners.clear()
     this.selection = null
+    this.touchTap = null
     cancelAnimationFrame(this.frame)
     this.resizeObserver?.disconnect()
     window.removeEventListener('resize', this.resize)
@@ -251,6 +303,13 @@ export class Engine {
         pointCount: s.points.length,
         bbox: { ...s.bbox },
         points: s.points.map((p) => [p[0], p[1], p[2]] as StrokePoint),
+      })),
+      videoMarks: this.videoMarks.map((m) => ({
+        id: m.id,
+        videoId: m.videoId,
+        t: m.t,
+        x: m.x,
+        y: m.y,
       })),
     }
   }
@@ -347,16 +406,67 @@ export class Engine {
     return best
   }
 
+  /** Updates which video ids are currently live on this board; marks for removed videos render at 40% opacity. */
+  setLiveVideoIds(ids: string[]): void {
+    this.liveVideoIds = new Set(ids)
+    this.committedDirty = true
+    this.schedule()
+  }
+
+  /** Adds a video timestamp mark and records a history entry. */
+  addVideoMark(mark: EngineVideoMark): void {
+    this.videoMarks.push(mark)
+    this.history.recordAddMark(mark)
+    this.options.onMarkChange?.({ removed: [], added: [mark] })
+    this.notifyHistory()
+    this.committedDirty = true
+    this.schedule()
+    this.emit()
+  }
+
+  /** Default world anchor for a new timestamp mark (24 px from canvas left, vertically centred, stacked below occupied marks). */
+  markAnchor(): Point {
+    const start = screenToWorld(this.camera, { x: MARK_ANCHOR_LEFT_PX, y: this.cssHeight / 2 })
+    return findFreeMarkAnchor(this.videoMarks, start)
+  }
+
   private applyOps(ops: HistoryOps | null): void {
     if (ops) {
-      const removed = this.dropStrokes(ops.tombstone)
+      const removedStrokes = this.dropStrokes(ops.tombstone)
       this.strokes.push(...ops.add)
+      const removedMarks = this.dropMarks(ops.tombstone)
+      this.videoMarks.push(...ops.addMarks)
       this.committedDirty = true
-      this.options.onStrokeChange?.({ removed: removed.map((s) => s.id), added: ops.add })
+      if (removedStrokes.length > 0 || ops.add.length > 0) {
+        this.options.onStrokeChange?.({ removed: removedStrokes.map((s) => s.id), added: ops.add })
+      }
+      if (removedMarks.length > 0 || ops.addMarks.length > 0) {
+        this.options.onMarkChange?.({ removed: removedMarks.map((m) => m.id), added: ops.addMarks })
+      }
       this.schedule()
       this.emit()
     }
     this.notifyHistory()
+  }
+
+  /** Takes marks out of the board state without reporting them. Returns the marks that were there. */
+  private dropMarks(ids: string[]): EngineVideoMark[] {
+    const set = new Set(ids)
+    const removed = this.videoMarks.filter((m) => set.has(m.id))
+    if (removed.length === 0) return removed
+    this.videoMarks = this.videoMarks.filter((m) => !set.has(m.id))
+    this.committedDirty = true
+    return removed
+  }
+
+  /** Takes marks out of the board state and reports them as erased. */
+  private removeMarks(ids: string[]): EngineVideoMark[] {
+    const removed = this.dropMarks(ids)
+    if (removed.length === 0) return removed
+    this.options.onMarkChange?.({ removed: removed.map((m) => m.id), added: [] })
+    this.schedule()
+    this.emit()
+    return removed
   }
 
   /** Takes strokes out of the board state without reporting them. Returns the strokes that were there. */
@@ -385,8 +495,11 @@ export class Engine {
   }
 
   private eraseAt(draft: Draft, x: number, y: number): void {
-    const ids = strokesHitByEraser(this.strokes, { x, y }, ERASER_RADIUS_PX / this.camera.zoom)
+    const radius = ERASER_RADIUS_PX / this.camera.zoom
+    const ids = strokesHitByEraser(this.strokes, { x, y }, radius)
     if (ids.length > 0) draft.erased.push(...this.removeStrokes(ids))
+    const markIds = marksHitByEraser(this.videoMarks, { x, y }, radius)
+    if (markIds.length > 0) draft.erasedMarks.push(...this.removeMarks(markIds))
   }
 
   /** World point at the viewport's top-left. */
@@ -471,9 +584,16 @@ export class Engine {
       this.panning = false
       if (this.draft) this.abortDraft() // a second finger turns a finger stroke into a pan/zoom
       const wasEmpty = this.touches.size === 0
-      this.touches.set(e.pointerId, this.toScreen(e))
+      const at = this.toScreen(e)
+      if (!wasEmpty) this.touchTap = null
+      this.touches.set(e.pointerId, at)
       this.capture(e)
-      if (this.fingerDraw && wasEmpty) this.startDraft(e, true)
+      if (this.fingerDraw && wasEmpty) {
+        this.startDraft(e, true)
+      } else if (!this.fingerDraw && wasEmpty && isDrawTool(this.toolState.tool)) {
+        const mark = markAt(this.videoMarks, screenToWorld(this.camera, at))
+        this.touchTap = mark ? { pointerId: e.pointerId, down: at, reach: 0, mark } : null
+      }
       return
     }
     if (e.pointerType !== 'pen' && e.pointerType !== 'mouse') return
@@ -481,6 +601,7 @@ export class Engine {
     if (e.pointerType === 'mouse' && e.button !== 0) return
     if (this.draft) return
     this.touches.clear() // a resting palm must not keep panning once the pen lands
+    this.touchTap = null
     this.startDraft(e, false)
   }
 
@@ -504,6 +625,7 @@ export class Engine {
         this.setSelection(null)
       }
     }
+    const tappedMark = mode === 'draw' && isDrawTool(tool) ? markAt(this.videoMarks, screenToWorld(this.camera, at)) : null
     const draft: Draft = {
       pointerId: e.pointerId,
       mode,
@@ -513,6 +635,8 @@ export class Engine {
       color,
       size,
       erased: [],
+      erasedMarks: [],
+      tappedMark,
       finger,
       down: at,
       at,
@@ -551,6 +675,13 @@ export class Engine {
     if (!prev) return
     e.preventDefault()
     const next = this.toScreen(e)
+    if (this.touchTap && e.pointerId === this.touchTap.pointerId) {
+      this.touchTap.reach = Math.max(
+        this.touchTap.reach,
+        Math.hypot(next.x - this.touchTap.down.x, next.y - this.touchTap.down.y),
+      )
+      if (this.touchTap.reach >= TAP_SLOP_PX || this.touches.size > 1) this.touchTap = null
+    }
     if (this.touches.size === 1) {
       // Until the slop is passed, `prev` stays the down point, so the pan then covers the full distance.
       if (!this.panning && Math.hypot(next.x - prev.x, next.y - prev.y) < PAN_SLOP_PX) return
@@ -584,6 +715,20 @@ export class Engine {
       this.commitDraft()
       return
     }
+    const tap = this.touchTap
+    if (tap && e.pointerId === tap.pointerId) {
+      this.touchTap = null
+      const at = this.toScreen(e)
+      const reach = Math.max(tap.reach, Math.hypot(at.x - tap.down.x, at.y - tap.down.y))
+      const single = this.touches.size === 1
+      const wasPanning = this.panning
+      this.touches.delete(e.pointerId)
+      if (this.touches.size === 0) this.panning = false
+      if (single && !wasPanning && reach < TAP_SLOP_PX) {
+        this.options.onMarkTap?.(tap.mark)
+      }
+      return
+    }
     this.touches.delete(e.pointerId)
     if (this.touches.size === 0) this.panning = false
   }
@@ -594,6 +739,7 @@ export class Engine {
       this.discardDraft()
       return
     }
+    if (this.touchTap?.pointerId === e.pointerId) this.touchTap = null
     this.touches.delete(e.pointerId)
   }
 
@@ -625,10 +771,14 @@ export class Engine {
   private abortDraft(): void {
     const draft = this.draft
     if (!draft) return
-    if (draft.tool === 'eraser' && draft.erased.length > 0) {
+    if (draft.tool === 'eraser' && (draft.erased.length > 0 || draft.erasedMarks.length > 0)) {
       for (const s of draft.erased) {
         this.strokes.push(s)
         this.options.onStrokeCommit?.(s)
+      }
+      if (draft.erasedMarks.length > 0) {
+        this.videoMarks.push(...draft.erasedMarks)
+        this.options.onMarkChange?.({ removed: [], added: draft.erasedMarks })
       }
       this.committedDirty = true
       this.schedule()
@@ -656,12 +806,17 @@ export class Engine {
       return
     }
     if (draft.tool === 'eraser') {
-      this.history.recordErase(draft.erased)
+      this.history.recordErase(draft.erased, draft.erasedMarks)
       this.notifyHistory()
       this.requestLive()
       return
     }
     if (!isDrawTool(draft.tool)) return
+    if (draft.tappedMark && draft.reach < TAP_SLOP_PX) {
+      this.requestLive()
+      this.options.onMarkTap?.(draft.tappedMark)
+      return
+    }
     const stroke: Stroke = {
       id: crypto.randomUUID(),
       tool: draft.tool,
@@ -873,6 +1028,26 @@ export class Engine {
       ctx.globalAlpha = stroke.tool === 'highlighter' ? HIGHLIGHTER_ALPHA : 1
       ctx.fill(path)
     }
+    if (this.videoMarks.length > 0) {
+      const accent = this.accentColor()
+      ctx.font = '13px system-ui, -apple-system, sans-serif'
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'middle'
+      for (const mark of this.videoMarks) {
+        const rect = markRect(mark)
+        if (!bboxIntersects(rect, view)) continue
+        const label = formatTimestamp(mark.t)
+        const opacity = this.liveVideoIds.has(mark.videoId) ? 1 : MARK_REMOVED_ALPHA
+        const w = rect.maxX - rect.minX
+        const h = rect.maxY - rect.minY
+        ctx.fillStyle = accent
+        ctx.globalAlpha = MARK_FILL_ALPHA * opacity
+        drawRoundedRect(ctx, rect.minX, rect.minY, w, h, MARK_RADIUS)
+        ctx.fill()
+        ctx.globalAlpha = opacity
+        ctx.fillText(`▶ ${label}`, rect.minX + 8, mark.y)
+      }
+    }
     ctx.globalAlpha = 1
   }
 
@@ -882,7 +1057,7 @@ export class Engine {
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.clearRect(0, 0, this.live.width, this.live.height)
     const draft = this.draft
-    if (draft?.mode === 'draw' && isDrawTool(draft.tool)) {
+    if (draft?.mode === 'draw' && isDrawTool(draft.tool) && !(draft.tappedMark && draft.reach < TAP_SLOP_PX)) {
       applyCamera(ctx, this.camera, this.dpr)
       this.fillStroke(ctx, { points: draft.points, size: draft.size, color: draft.color, simulatePressure: draft.simulatePressure, tool: draft.tool })
     }

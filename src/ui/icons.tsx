@@ -133,3 +133,11 @@ export const TrashIcon = () => (
     <path d="M10 11v5.5M14 11v5.5" />
   </Icon>
 )
+
+export const ClockIcon = () => (
+  <Icon>
+    <circle cx="12" cy="13" r="7.5" />
+    <path d="M12 9.5V13l2.5 1.5" />
+    <path d="M9.5 3h5M12 3v2.5" />
+  </Icon>
+)
