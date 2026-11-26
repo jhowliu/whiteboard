@@ -11,7 +11,7 @@ export type BackendLogEntry = {
 
 type Stored = { row: SyncRow; syncedAt: string }
 
-/** In-memory `SyncBackend` for tests. It mimics the server rules: insert-or-ignore, stroke tombstones, newest board wins. */
+/** In-memory `SyncBackend` for tests. It mimics the server rules: insert-or-ignore, tombstones for strokes, videos and marks, newest board wins. */
 export class MemorySyncBackend implements SyncBackend {
   /** While set, every backend call throws it. */
   failure: Error | null = null
@@ -24,6 +24,8 @@ export class MemorySyncBackend implements SyncBackend {
     strokes: new Map(),
     pdfFiles: new Map(),
     pdfPages: new Map(),
+    videos: new Map(),
+    videoMarks: new Map(),
   }
   private readonly pdfs = new Map<string, Blob>()
   private seq = 0
@@ -53,7 +55,7 @@ export class MemorySyncBackend implements SyncBackend {
       const existing = store.get(incoming.id)
       if (!existing) {
         store.set(incoming.id, { row: structuredClone(incoming), syncedAt: this.nextStamp() })
-      } else if (table === 'strokes') {
+      } else if (table === 'strokes' || table === 'videos' || table === 'videoMarks') {
         if (incoming.deletedAt != null && existing.row.deletedAt == null) {
           existing.row.deletedAt = incoming.deletedAt
           existing.syncedAt = this.nextStamp()

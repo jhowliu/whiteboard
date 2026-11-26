@@ -448,3 +448,106 @@ describe('status', () => {
     expect(a.engine.getStatus()).toMatchObject({ status: 'synced', pending: 0 })
   })
 })
+
+// Issue #44: videos and timestamp marks sync like strokes: pushed after their board, pulled by cursor,
+// tombstones applied to live local rows, and claimed by the first account on sign-in.
+describe('videos and timestamp marks', () => {
+  const YT = 'dQw4w9WgXcQ'
+
+  it('shows a video and its mark drawn on A on B', async () => {
+    const backend = new MemorySyncBackend()
+    const a = makeDevice(backend, 'U1')
+    const b = makeDevice(backend, 'U1')
+    const board = await a.repo.createBoard('lecture')
+    const video = await a.repo.addVideo(board.id, { externalId: YT, title: 'Talk' })
+    await a.repo.applyMarkChanges(board.id, [], [{ id: 'm1', videoId: video.id, t: 12.34, x: 100, y: 200, createdAt: Date.now() }])
+    await a.engine.syncNow()
+    await b.engine.syncNow()
+
+    expect(await b.repo.listVideos(board.id)).toEqual([
+      expect.objectContaining({ id: video.id, externalId: YT, title: 'Talk', ownerId: 'U1', deletedAt: null }),
+    ])
+    expect(await b.repo.listVideoMarks(board.id)).toEqual([
+      expect.objectContaining({ id: 'm1', videoId: video.id, t: 12.3, x: 100, y: 200 }),
+    ])
+    expect(await b.db.outbox.count()).toBe(0) // applying pulled rows queues nothing
+  })
+
+  it('hides a video removed on A on B, and keeps its marks there', async () => {
+    const backend = new MemorySyncBackend()
+    const a = makeDevice(backend, 'U1')
+    const b = makeDevice(backend, 'U1')
+    const board = await a.repo.createBoard('lecture')
+    const video = await a.repo.addVideo(board.id, { externalId: YT, title: 'Talk' })
+    await a.repo.applyMarkChanges(board.id, [], [{ id: 'm1', videoId: video.id, t: 3, x: 0, y: 0, createdAt: Date.now() }])
+    await a.engine.syncNow()
+    await b.engine.syncNow()
+
+    tick()
+    await a.repo.removeVideo(video.id)
+    await a.engine.syncNow()
+    await b.engine.syncNow()
+    expect(await b.repo.listVideos(board.id)).toEqual([])
+    expect((await b.db.videos.get(video.id))?.deletedAt).not.toBeNull()
+    expect((await b.repo.listVideoMarks(board.id)).map((m) => m.id)).toEqual(['m1'])
+  })
+
+  it('hides a mark tombstoned on A on B', async () => {
+    const backend = new MemorySyncBackend()
+    const a = makeDevice(backend, 'U1')
+    const b = makeDevice(backend, 'U1')
+    const board = await a.repo.createBoard('lecture')
+    const video = await a.repo.addVideo(board.id, { externalId: YT, title: 'Talk' })
+    await a.repo.applyMarkChanges(board.id, [], [{ id: 'm1', videoId: video.id, t: 3, x: 0, y: 0, createdAt: Date.now() }])
+    await a.engine.syncNow()
+    await b.engine.syncNow()
+
+    tick()
+    await a.repo.applyMarkChanges(board.id, ['m1'], [])
+    await a.engine.syncNow()
+    await b.engine.syncNow()
+    expect(await b.repo.listVideoMarks(board.id)).toEqual([])
+    expect((await b.db.videoMarks.get('m1'))?.deletedAt).not.toBeNull()
+  })
+
+  it('pushes videos before video marks, even when the outbox lists the mark first', async () => {
+    const backend = new MemorySyncBackend()
+    const a = makeDevice(backend, 'U1')
+    const board = await a.repo.createBoard('lecture')
+    const video = await a.repo.addVideo(board.id, { externalId: YT, title: 'Talk' })
+    await a.repo.applyMarkChanges(board.id, [], [{ id: 'm1', videoId: video.id, t: 1, x: 0, y: 0, createdAt: Date.now() }])
+    const entries = await a.db.outbox.toArray()
+    await a.db.outbox.clear()
+    const marksFirst = [...entries.filter((e) => e.table === 'videoMarks'), ...entries.filter((e) => e.table !== 'videoMarks')]
+    await a.db.outbox.bulkAdd(marksFirst.map(({ table, rowId, createdAt }) => ({ table, rowId, createdAt })))
+
+    await a.engine.syncNow()
+    const pushed = backend.log.filter((e) => e.op === 'push').map((e) => e.table)
+    expect(pushed).toEqual(expect.arrayContaining(['videos', 'videoMarks']))
+    expect(pushed.indexOf('videos')).toBeLessThan(pushed.indexOf('videoMarks'))
+    expect(await a.db.outbox.count()).toBe(0)
+  })
+
+  it('claims local videos and marks for the first account and queues them', async () => {
+    const backend = new MemorySyncBackend()
+    const a = makeDevice(backend, null)
+    // Rows left on the device before anyone signed in: no owner, no outbox entries.
+    await a.db.boards.add({ id: 'b1', ownerId: null, title: 'old', createdAt: 1, updatedAt: 1, deletedAt: null })
+    await a.db.videos.add({ id: 'v1', boardId: 'b1', ownerId: null, provider: 'youtube', externalId: YT, title: 'Talk', createdAt: 2, deletedAt: null })
+    await a.db.videoMarks.add({ id: 'm1', boardId: 'b1', videoId: 'v1', ownerId: null, t: 1, x: 0, y: 0, createdAt: 3, deletedAt: null })
+
+    a.user.id = 'U1'
+    backend.failure = new Error('down') // keep the queue visible
+    await a.engine.syncNow()
+    expect((await a.db.videos.get('v1'))?.ownerId).toBe('U1')
+    expect((await a.db.videoMarks.get('m1'))?.ownerId).toBe('U1')
+    const queued = (await a.db.outbox.toArray()).map((e) => `${e.table}:${e.rowId}`)
+    expect(queued).toEqual(expect.arrayContaining(['videos:v1', 'videoMarks:m1']))
+
+    backend.failure = null
+    await a.engine.syncNow()
+    expect(backend.rows('videos')[0]).toMatchObject({ id: 'v1', ownerId: 'U1' })
+    expect(backend.rows('videoMarks')[0]).toMatchObject({ id: 'm1', ownerId: 'U1' })
+    expect(await a.db.outbox.count()).toBe(0)
+  })
+})

@@ -2,7 +2,6 @@ import {
   type Board,
   type PdfFile,
   type PdfPage,
-  type StoredStroke,
   SYNC_TABLES,
   type SyncCursor,
   type SyncTable,
@@ -124,6 +123,22 @@ export function createSyncEngine({ db, backend, getUserId, isOnline = () => navi
 
   // ---- pull ----------------------------------------------------------------
 
+  /** Immutable rows (strokes, videos, marks): add the missing ones, and apply a remote tombstone to a live local row. */
+  async function applyImmutableRows(table: 'strokes' | 'videos' | 'videoMarks', rows: SyncRow[]): Promise<void> {
+    const store = db.table<{ id: string; deletedAt: number | null }>(table)
+    const local = await store.bulkGet(rows.map((r) => r.id))
+    const add: { id: string; deletedAt: number | null }[] = []
+    const tombstone: [string, number][] = []
+    rows.forEach((r, i) => {
+      const remote = r as unknown as { id: string; deletedAt: number | null }
+      const mine = local[i]
+      if (!mine) add.push(remote)
+      else if (remote.deletedAt !== null && mine.deletedAt === null) tombstone.push([mine.id, remote.deletedAt])
+    })
+    await store.bulkPut(add)
+    for (const [id, deletedAt] of tombstone) await store.update(id, { deletedAt })
+  }
+
   async function applyRows(table: SyncTable, rows: SyncRow[]): Promise<void> {
     switch (table) {
       case 'boards': {
@@ -137,20 +152,10 @@ export function createSyncEngine({ db, backend, getUserId, isOnline = () => navi
         await db.boards.bulkPut(win)
         return
       }
-      case 'strokes': {
-        const local = await db.strokes.bulkGet(rows.map((r) => r.id))
-        const add: StoredStroke[] = []
-        const tombstone: [string, number][] = []
-        rows.forEach((r, i) => {
-          const remote = r as unknown as StoredStroke
-          const mine = local[i]
-          if (!mine) add.push(remote)
-          else if (remote.deletedAt !== null && mine.deletedAt === null) tombstone.push([mine.id, remote.deletedAt])
-        })
-        await db.strokes.bulkPut(add)
-        for (const [id, deletedAt] of tombstone) await db.strokes.update(id, { deletedAt })
-        return
-      }
+      case 'strokes':
+      case 'videos':
+      case 'videoMarks':
+        return applyImmutableRows(table, rows)
       case 'pdfFiles': {
         const local = await db.pdfFiles.bulkGet(rows.map((r) => r.id))
         const add = rows.filter((_, i) => !local[i]) as unknown as PdfFile[]

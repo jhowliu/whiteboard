@@ -21,7 +21,8 @@ const TIMEOUT = 60_000
 const USER_A = '00000000-0000-4000-8000-00000000000a'
 const USER_B = '00000000-0000-4000-8000-00000000000b'
 
-const TABLES = ['boards', 'strokes', 'pdf_files', 'pdf_pages'] as const
+// Issue #44 adds `videos` and `video_marks`; the generic checks below cover them too.
+const TABLES = ['boards', 'strokes', 'pdf_files', 'pdf_pages', 'videos', 'video_marks'] as const
 type Table = (typeof TABLES)[number]
 
 function migrationFiles(): string[] {
@@ -115,6 +116,44 @@ async function insertPdfPage(
   return id
 }
 
+async function insertVideo(
+  db: PGlite,
+  boardId: string,
+  extra: Record<string, unknown> = {},
+): Promise<string> {
+  const id = uuid()
+  await insertRow(db, 'videos', {
+    id,
+    board_id: boardId,
+    provider: 'youtube',
+    external_id: 'dQw4w9WgXcQ',
+    title: 'Talk',
+    created_at: 1,
+    ...extra,
+  })
+  return id
+}
+
+async function insertVideoMark(
+  db: PGlite,
+  boardId: string,
+  videoId: string,
+  extra: Record<string, unknown> = {},
+): Promise<string> {
+  const id = uuid()
+  await insertRow(db, 'video_marks', {
+    id,
+    board_id: boardId,
+    video_id: videoId,
+    t: 1.5,
+    x: 0,
+    y: 0,
+    created_at: 1,
+    ...extra,
+  })
+  return id
+}
+
 async function insertRow(db: PGlite, table: Table, row: Record<string, unknown>): Promise<void> {
   const cols = Object.keys(row)
   const params = cols.map((_, i) => `$${i + 1}`)
@@ -139,6 +178,12 @@ async function insertInto(
       return insertStroke(db, await insertBoard(db), extra)
     case 'pdf_pages':
       return insertPdfPage(db, await insertBoard(db), await insertPdfFile(db), extra)
+    case 'videos':
+      return insertVideo(db, await insertBoard(db), extra)
+    case 'video_marks': {
+      const boardId = await insertBoard(db)
+      return insertVideoMark(db, boardId, await insertVideo(db, boardId), extra)
+    }
   }
 }
 
@@ -346,11 +391,18 @@ describe('supabase migrations', { timeout: TIMEOUT }, () => {
         await expect(as(db, USER_B, () => insertInto(db, t, { owner_id: USER_A }))).rejects.toThrow()
       } else {
         const boardId = await as(db, USER_B, () => insertBoard(db))
-        const insert =
-          t === 'strokes'
-            ? () => insertStroke(db, boardId, { owner_id: USER_A })
-            : async () =>
-                insertPdfPage(db, boardId, await insertPdfFile(db), { owner_id: USER_A })
+        const insert = async (): Promise<unknown> => {
+          switch (t) {
+            case 'strokes':
+              return insertStroke(db, boardId, { owner_id: USER_A })
+            case 'pdf_pages':
+              return insertPdfPage(db, boardId, await insertPdfFile(db), { owner_id: USER_A })
+            case 'videos':
+              return insertVideo(db, boardId, { owner_id: USER_A })
+            case 'video_marks':
+              return insertVideoMark(db, boardId, await insertVideo(db, boardId), { owner_id: USER_A })
+          }
+        }
         await expect(as(db, USER_B, insert)).rejects.toThrow()
       }
       expect(await as(db, USER_A, () => ids(db, t))).toEqual([])
@@ -548,8 +600,151 @@ describe('supabase migrations', { timeout: TIMEOUT }, () => {
     })
   })
 
+  // Issue #44: videos and their timestamp marks. Both follow the stroke rules: the owner's rows only,
+  // immutable except for one tombstone.
+  describe('videos and video marks', () => {
+    it.each(['aB3_-xY9Zq-', 'dQw4w9WgXcQ'])('accepts the 11-character YouTube id %s', async (externalId) => {
+      const boardId = await as(db, USER_A, () => insertBoard(db))
+      await expect(
+        as(db, USER_A, () => insertVideo(db, boardId, { external_id: externalId })),
+      ).resolves.toEqual(expect.any(String))
+    })
+
+    it.each(['not-an-id', '', 'dQw4w9WgXc', 'dQw4w9WgXcQQ', 'dQw4w9WgX!Q'])(
+      'rejects the external_id %j',
+      async (externalId) => {
+        const boardId = await as(db, USER_A, () => insertBoard(db))
+        await expect(
+          as(db, USER_A, () => insertVideo(db, boardId, { external_id: externalId })),
+        ).rejects.toThrow()
+        expect(await ids(db, 'videos')).toEqual([])
+      },
+    )
+
+    it('rejects a provider other than youtube', async () => {
+      const boardId = await as(db, USER_A, () => insertBoard(db))
+      await expect(
+        as(db, USER_A, () => insertVideo(db, boardId, { provider: 'vimeo' })),
+      ).rejects.toThrow()
+    })
+
+    it('rejects a video without a title', async () => {
+      const boardId = await as(db, USER_A, () => insertBoard(db))
+      await expect(as(db, USER_A, () => insertVideo(db, boardId, { title: null }))).rejects.toThrow()
+    })
+
+    it('rejects a video on a board that does not exist', async () => {
+      await expect(as(db, USER_A, () => insertVideo(db, uuid()))).rejects.toThrow(/foreign key/i)
+    })
+
+    it('accepts a mark at t = 0 and rejects a negative t', async () => {
+      const boardId = await as(db, USER_A, () => insertBoard(db))
+      const videoId = await as(db, USER_A, () => insertVideo(db, boardId))
+      await expect(as(db, USER_A, () => insertVideoMark(db, boardId, videoId, { t: 0 }))).resolves.toEqual(
+        expect.any(String),
+      )
+      await expect(as(db, USER_A, () => insertVideoMark(db, boardId, videoId, { t: -0.1 }))).rejects.toThrow()
+      await expect(as(db, USER_A, () => insertVideoMark(db, boardId, videoId, { t: -1 }))).rejects.toThrow()
+    })
+
+    it('rejects a mark whose video does not exist', async () => {
+      const boardId = await as(db, USER_A, () => insertBoard(db))
+      await expect(as(db, USER_A, () => insertVideoMark(db, boardId, uuid()))).rejects.toThrow(/foreign key/i)
+    })
+  })
+
+  describe.each(['videos', 'video_marks'] as const)('%s tombstones', (t) => {
+    // Every column except deleted_at and synced_at is fixed after insert.
+    const IMMUTABLE: Record<'videos' | 'video_marks', [column: string, set: string][]> = {
+      videos: [
+        ['title', "title = 'Renamed'"],
+        ['external_id', "external_id = 'aB3_-xY9Zq-'"],
+        ['created_at', 'created_at = 2'],
+        ['board_id', 'board_id = gen_random_uuid()'],
+      ],
+      video_marks: [
+        ['t', 't = 2'],
+        ['x', 'x = 9'],
+        ['y', 'y = 9'],
+        ['created_at', 'created_at = 2'],
+      ],
+    }
+
+    let rowId: string
+
+    beforeEach(async () => {
+      rowId = await as(db, USER_A, () => insertInto(db, t))
+    })
+
+    const update = (set: string, params: unknown[] = []) =>
+      as(db, USER_A, () =>
+        db.query(`update ${t} set ${set} where id = $${params.length + 1}`, [...params, rowId]),
+      )
+
+    async function deletedAt(): Promise<number | null> {
+      const { rows } = await db.query<{ deleted_at: bigint | number | null }>(
+        `select deleted_at from ${t} where id = $1`,
+        [rowId],
+      )
+      return rows[0].deleted_at === null ? null : Number(rows[0].deleted_at)
+    }
+
+    it.each(IMMUTABLE[t])('rejects updating %s', async (_column, set) => {
+      await expect(update(set)).rejects.toThrow()
+      expect(await deletedAt()).toBeNull()
+    })
+
+    it('rejects changing an immutable column together with the tombstone', async () => {
+      await expect(update(`deleted_at = 5, ${IMMUTABLE[t][0][1]}`)).rejects.toThrow()
+      expect(await deletedAt()).toBeNull()
+    })
+
+    it('lets the owner read the row and tombstone it once, from null to a value', async () => {
+      expect(await as(db, USER_A, () => ids(db, t))).toEqual([rowId])
+      await update('deleted_at = 1732406400000')
+      expect(await deletedAt()).toBe(1_732_406_400_000)
+    })
+
+    it('allows a tombstone at epoch 0', async () => {
+      await update('deleted_at = 0')
+      expect(await deletedAt()).toBe(0)
+    })
+
+    it('rejects setting deleted_at a second time, or to the same value', async () => {
+      await update('deleted_at = 100')
+      await expect(update('deleted_at = 200')).rejects.toThrow()
+      await expect(update('deleted_at = 100')).rejects.toThrow()
+      expect(await deletedAt()).toBe(100)
+    })
+
+    it('rejects clearing deleted_at', async () => {
+      await update('deleted_at = 100')
+      await expect(update('deleted_at = null')).rejects.toThrow()
+      expect(await deletedAt()).toBe(100)
+    })
+
+    it('is enforced even for the database owner', async () => {
+      await expect(db.query(`update ${t} set ${IMMUTABLE[t][0][1]} where id = $1`, [rowId])).rejects.toThrow()
+    })
+
+    it('does not let B tombstone A’s row', async () => {
+      const res = await as(db, USER_B, () =>
+        db.query(`update ${t} set deleted_at = 7 where id = $1`, [rowId]),
+      )
+      expect(res.affectedRows ?? 0).toBe(0)
+      expect(await deletedAt()).toBeNull()
+    })
+
+    it('advances synced_at on the tombstone, so pulls see it', async () => {
+      const inserted = await syncedAt(db, t, rowId)
+      await sleep(20)
+      await update('deleted_at = 5')
+      expect(await syncedAt(db, t, rowId)).toBeGreaterThan(inserted)
+    })
+  })
+
   describe('storage', () => {
-    const insertObject = (bucket: string, name: string) =>
+    const insertObject =(bucket: string, name: string) =>
       db.query('insert into storage.objects (bucket_id, name) values ($1, $2)', [bucket, name])
 
     const objectNames = () =>

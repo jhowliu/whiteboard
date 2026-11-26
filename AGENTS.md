@@ -32,9 +32,13 @@ These were decided up front. Do not change them without an issue that says so.
             bbox: { minX, minY, maxX, maxY }, createdAt, deletedAt: number | null }
   PdfFile { id, ownerId: string | null, name, blob, createdAt }   // original PDF, stored once
   PdfPage { id, boardId, pdfId, pageIndex, x, y, width, height }  // world coords, locked
+  Video     { id, boardId, ownerId: string | null, provider: 'youtube', externalId, title,
+              createdAt, deletedAt: number | null }   // externalId: the 11-character YouTube id
+  VideoMark { id, boardId, videoId, ownerId: string | null, t, x, y,
+              createdAt, deletedAt: number | null }   // t: video seconds, to 0.1; x, y: world coords, left edge at vertical centre
   ```
 
-- **Strokes are immutable.** Erasing sets `deletedAt` (a tombstone); moving or recolouring a stroke is tombstone + new stroke. Undo/redo works in those terms. Queries hide tombstoned rows.
+- **Strokes are immutable.** Erasing sets `deletedAt` (a tombstone); moving or recolouring a stroke is tombstone + new stroke. Videos and video marks follow the same rule: after insert, the only change is the tombstone, and moving a mark is tombstone + new mark. Undo/redo works in those terms. Queries hide tombstoned rows.
 - **PDF:** `pdfjs-dist` renders pages; `PdfPage` elements sit under strokes and cannot be moved. Annotated-PDF export assigns a stroke to every page whose rectangle its `bbox` intersects.
 - **Sync (Supabase):** offline-first. Dexie is the source of truth; writes go to Dexie first, then an outbox pushes them. Pull is incremental by a server-assigned `synced_at` cursor (set by a trigger on every insert and update; distinct from the client's `updatedAt`). PDF blobs go to Supabase Storage at `{ownerId}/{pdfId}.pdf`. Every table enforces `owner_id = auth.uid()` with Row Level Security.
 - **Auth:** email one-time code only (`signInWithOtp` with `shouldCreateUser: false`, then `verifyOtp` with `type: 'email'`). No magic links or OAuth: an installed iPad PWA does not share storage with Safari. The app must stay fully usable without signing in (local-only mode).

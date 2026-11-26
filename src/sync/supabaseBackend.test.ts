@@ -208,3 +208,81 @@ describe('SupabaseSyncBackend PDF storage', () => {
     expect(got).toBe(storage.blob)
   })
 })
+
+// Issue #44: videos and timestamp marks go to the `videos` and `video_marks` tables, in snake_case.
+
+const video = (over: Record<string, unknown> = {}) => ({
+  id: 'v1', boardId: 'b1', ownerId: 'U1', provider: 'youtube', externalId: 'dQw4w9WgXcQ', title: 'Talk',
+  createdAt: 10, deletedAt: null, ...over,
+})
+const mark = (over: Record<string, unknown> = {}) => ({
+  id: 'm1', boardId: 'b1', videoId: 'v1', ownerId: 'U1', t: 12.3, x: 100, y: -40, createdAt: 11, deletedAt: null, ...over,
+})
+
+describe('SupabaseSyncBackend videos and video marks', () => {
+  it('upserts a video as an insert-or-ignore snake_case row in videos', async () => {
+    const { client, chains } = fakeClient()
+    await new SupabaseSyncBackend(client).pushRows('videos', [video()])
+    const chain = chains.find((c) => has(c, 'upsert'))!
+    expect(chain.table).toBe('videos')
+    const [rows, options] = chain.ops.find(([n]) => n === 'upsert')![1] as [Record<string, unknown>[], unknown]
+    expect(options).toEqual({ onConflict: 'id', ignoreDuplicates: true })
+    expect(rows).toEqual([
+      {
+        id: 'v1', board_id: 'b1', owner_id: 'U1', provider: 'youtube', external_id: 'dQw4w9WgXcQ', title: 'Talk',
+        created_at: 10, deleted_at: null,
+      },
+    ])
+    expect(chains.some((c) => has(c, 'update'))).toBe(false)
+  })
+
+  it('upserts a video mark as an insert-or-ignore snake_case row in video_marks', async () => {
+    const { client, chains } = fakeClient()
+    await new SupabaseSyncBackend(client).pushRows('videoMarks', [mark()])
+    const chain = chains.find((c) => has(c, 'upsert'))!
+    expect(chain.table).toBe('video_marks')
+    const [rows, options] = chain.ops.find(([n]) => n === 'upsert')![1] as [Record<string, unknown>[], unknown]
+    expect(options).toEqual({ onConflict: 'id', ignoreDuplicates: true })
+    expect(rows).toEqual([
+      { id: 'm1', board_id: 'b1', video_id: 'v1', owner_id: 'U1', t: 12.3, x: 100, y: -40, created_at: 11, deleted_at: null },
+    ])
+    expect(chains.some((c) => has(c, 'update'))).toBe(false)
+  })
+
+  it('sends a guarded tombstone update for a removed video', async () => {
+    const { client, chains } = fakeClient()
+    await new SupabaseSyncBackend(client).pushRows('videos', [video({ deletedAt: 99 })])
+    const upd = chains.find((c) => has(c, 'update'))!
+    expect(upd.table).toBe('videos')
+    expect(upd.ops.find(([n]) => n === 'update')![1][0]).toEqual({ deleted_at: 99 })
+    expect(has(upd, 'eq', (a) => a[0] === 'id' && a[1] === 'v1')).toBe(true)
+    expect(has(upd, 'is', (a) => a[0] === 'deleted_at' && a[1] === null)).toBe(true)
+  })
+
+  it('sends a guarded tombstone update for a removed mark', async () => {
+    const { client, chains } = fakeClient()
+    await new SupabaseSyncBackend(client).pushRows('videoMarks', [mark({ deletedAt: 99 })])
+    const upd = chains.find((c) => has(c, 'update'))!
+    expect(upd.table).toBe('video_marks')
+    expect(upd.ops.find(([n]) => n === 'update')![1][0]).toEqual({ deleted_at: 99 })
+    expect(has(upd, 'eq', (a) => a[0] === 'id' && a[1] === 'm1')).toBe(true)
+    expect(has(upd, 'is', (a) => a[0] === 'deleted_at' && a[1] === null)).toBe(true)
+  })
+
+  it.each([
+    ['videos', 'videos', () => video({ deletedAt: 99 })],
+    ['videoMarks', 'video_marks', () => mark({ deletedAt: 99 })],
+  ] as const)('maps %s rows to %s on push and back to the same row on pull', async (table, remote, make) => {
+    const row = make()
+    const pushed = fakeClient()
+    await new SupabaseSyncBackend(pushed.client).pushRows(table, [row])
+    const upsert = pushed.chains.find((c) => has(c, 'upsert'))!
+    expect(upsert.table).toBe(remote)
+    const [[payload]] = upsert.ops.find(([n]) => n === 'upsert')![1] as [Record<string, unknown>[]]
+
+    const pulled = fakeClient(() => [{ ...payload, synced_at: '2026-01-01T00:00:00.000001+00:00' }])
+    const out = await new SupabaseSyncBackend(pulled.client).pullSince(table, null)
+    expect(pulled.chains[0].table).toBe(remote)
+    expect(out.rows).toEqual([row])
+  })
+})

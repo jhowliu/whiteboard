@@ -1,12 +1,31 @@
 import { layoutPdfPages, type PageSize } from '../engine/pdfLayout.ts'
-import { type Board, db as defaultDb, type PdfPage, type StoredStroke, type SyncTable, type WhiteboardDB } from './db.ts'
+import {
+  type Board,
+  db as defaultDb,
+  type PdfPage,
+  type StoredStroke,
+  type SyncTable,
+  type Video,
+  type VideoMark,
+  type WhiteboardDB,
+} from './db.ts'
 
-export type { Board, PdfFile, PdfPage, StoredStroke, WhiteboardDB } from './db.ts'
+export type { Board, PdfFile, PdfPage, StoredStroke, Video, VideoMark, WhiteboardDB } from './db.ts'
 export { db } from './db.ts'
 
 export const DEFAULT_BOARD_TITLE = '未命名白板'
 
 export type NewStroke = Omit<StoredStroke, 'boardId' | 'ownerId' | 'deletedAt'>
+export type NewVideoMark = Omit<VideoMark, 'boardId' | 'ownerId' | 'deletedAt'>
+
+/** A YouTube video id: exactly 11 characters from the URL-safe alphabet. */
+const YOUTUBE_ID = /^[A-Za-z0-9_-]{11}$/
+
+/** Video times are stored to the tenth of a second so every device stores the same value. */
+function roundMarkTime(t: number): number {
+  // `+ 0` turns -0 (a tiny negative time rounded away) into 0.
+  return Math.round(t * 10) / 10 + 0
+}
 
 let persistRequested = false
 
@@ -128,6 +147,80 @@ export function createRepository(db: WhiteboardDB) {
     })
   }
 
+  /** Adds a YouTube video to the board. Rejects an id that is not 11 YouTube id characters, and stores nothing. */
+  async function addVideo(boardId: string, { externalId, title }: { externalId: string; title: string }): Promise<Video> {
+    if (!YOUTUBE_ID.test(externalId)) throw new Error(`Not a YouTube video id: ${externalId}`)
+    const video: Video = {
+      id: crypto.randomUUID(),
+      boardId,
+      ownerId: null,
+      provider: 'youtube',
+      externalId,
+      title,
+      createdAt: Date.now(),
+      deletedAt: null,
+    }
+    await db.transaction('rw', db.boards, db.videos, db.outbox, async () => {
+      await db.videos.add(video)
+      const touched = await db.boards.where('id').equals(boardId).modify({ updatedAt: Date.now() })
+      await queue(db, 'videos', [video.id])
+      if (touched > 0) await queue(db, 'boards', [boardId])
+    })
+    return video
+  }
+
+  async function listVideos(boardId: string): Promise<Video[]> {
+    if (!(await getBoard(boardId))) return []
+    const rows = await db.videos.where('boardId').equals(boardId).toArray()
+    return rows.filter((v) => v.deletedAt === null).sort((a, b) => a.createdAt - b.createdAt)
+  }
+
+  /** Tombstones the video and touches its board. Its marks are kept: they are still the user's notes. */
+  async function removeVideo(id: string): Promise<void> {
+    await db.transaction('rw', db.videos, db.boards, db.outbox, async () => {
+      const video = await db.videos.get(id)
+      if (!video || video.deletedAt !== null) return
+      const now = Date.now()
+      await db.videos.update(id, { deletedAt: now })
+      const touched = await db.boards.where('id').equals(video.boardId).modify({ updatedAt: now })
+      await queue(db, 'videos', [id])
+      if (touched > 0) await queue(db, 'boards', [video.boardId])
+    })
+  }
+
+  /**
+   * Tombstones `removedIds` and stores `added` in one transaction, like `applyStrokeChanges`. Ids already
+   * tombstoned are skipped. Each added `t` is rounded to 0.1 first; a negative or non-finite `t` rejects the whole call.
+   */
+  async function applyMarkChanges(boardId: string, removedIds: string[], added: NewVideoMark[]): Promise<void> {
+    if (removedIds.length === 0 && added.length === 0) return
+    for (const mark of added) {
+      if (!Number.isFinite(mark.t) || mark.t < 0) throw new Error(`Invalid video time: ${mark.t}`)
+    }
+    const stored = added.map((mark) => ({ ...mark, t: roundMarkTime(mark.t) }))
+    await db.transaction('rw', db.boards, db.videoMarks, db.outbox, async () => {
+      const now = Date.now()
+      const tombstoned: string[] = []
+      for (const id of removedIds) {
+        const mark = await db.videoMarks.get(id)
+        if (!mark || mark.deletedAt !== null) continue
+        await db.videoMarks.update(id, { deletedAt: now })
+        tombstoned.push(id)
+      }
+      for (const mark of stored) await db.videoMarks.put({ ...mark, boardId, ownerId: null, deletedAt: null })
+      const touched = await db.boards.where('id').equals(boardId).modify({ updatedAt: now })
+      await queue(db, 'videoMarks', [...tombstoned, ...stored.map((m) => m.id)])
+      if (touched > 0) await queue(db, 'boards', [boardId])
+    })
+  }
+
+  /** Live marks by createdAt, including marks whose video was removed. */
+  async function listVideoMarks(boardId: string): Promise<VideoMark[]> {
+    if (!(await getBoard(boardId))) return []
+    const rows = await db.videoMarks.where('boardId').equals(boardId).toArray()
+    return rows.filter((m) => m.deletedAt === null).sort((a, b) => a.createdAt - b.createdAt)
+  }
+
   /** Stores the PDF and one locked page per size, stacked from the viewport origin, in one transaction. */
   async function importPdf(
     boardId: string,
@@ -193,6 +286,11 @@ export function createRepository(db: WhiteboardDB) {
     listStrokes,
     deleteStroke,
     applyStrokeChanges,
+    addVideo,
+    listVideos,
+    removeVideo,
+    applyMarkChanges,
+    listVideoMarks,
     importPdf,
     listPdfPages,
     getPdfBlob,
@@ -216,6 +314,11 @@ export const {
   listStrokes,
   deleteStroke,
   applyStrokeChanges,
+  addVideo,
+  listVideos,
+  removeVideo,
+  applyMarkChanges,
+  listVideoMarks,
   importPdf,
   listPdfPages,
   getPdfBlob,
