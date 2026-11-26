@@ -4,7 +4,7 @@ import type { EngineVideoMark } from './videoMark.ts'
 export type HistoryOps = { tombstone: string[]; add: Stroke[]; addMarks: EngineVideoMark[] }
 
 type Entry =
-  | { kind: 'add'; template: Stroke; ids: string[] }
+  | { kind: 'add'; template: Stroke; ids: string[]; markTemplate?: EngineVideoMark; markIds: string[] }
   | { kind: 'addMark'; template: EngineVideoMark; ids: string[] }
   | { kind: 'erase'; templates: Stroke[]; ids: string[]; markTemplates: EngineVideoMark[]; markIds: string[] }
   /** A move: `before` and `after` are templates; `beforeIds`/`afterIds` are the ids that currently stand for each. */
@@ -21,7 +21,7 @@ function copyMark(m: EngineVideoMark): EngineVideoMark {
 /** The id lists of an entry that must follow replacements. */
 function idLists(e: Entry): string[][] {
   if (e.kind === 'transform') return [e.beforeIds, e.afterIds]
-  if (e.kind === 'erase') return [e.ids, e.markIds]
+  if (e.kind === 'erase' || e.kind === 'add') return [e.ids, e.markIds]
   return [e.ids]
 }
 
@@ -73,8 +73,14 @@ export function createHistory() {
     get canRedo() {
       return redoStack.length > 0
     },
-    recordAdd(stroke: Stroke): void {
-      undoStack.push({ kind: 'add', template: stroke, ids: [stroke.id] })
+    recordAdd(stroke: Stroke, mark?: EngineVideoMark): void {
+      undoStack.push({
+        kind: 'add',
+        template: stroke,
+        ids: [stroke.id],
+        markTemplate: mark,
+        markIds: mark ? [mark.id] : [],
+      })
       redoStack.length = 0
     },
     recordAddMark(mark: EngineVideoMark): void {
@@ -110,6 +116,7 @@ export function createHistory() {
       redoStack.push(entry)
       switch (entry.kind) {
         case 'add':
+          return { tombstone: [...entry.ids, ...entry.markIds], add: [], addMarks: [] }
         case 'addMark':
           return { tombstone: [...entry.ids], add: [], addMarks: [] }
         case 'erase':
@@ -130,7 +137,11 @@ export function createHistory() {
       undoStack.push(entry)
       switch (entry.kind) {
         case 'add':
-          return { tombstone: [], add: recreate(entry.ids, [entry.template]), addMarks: [] }
+          return {
+            tombstone: [],
+            add: recreate(entry.ids, [entry.template]),
+            addMarks: entry.markTemplate ? recreateMarks(entry.markIds, [entry.markTemplate]) : [],
+          }
         case 'addMark':
           return { tombstone: [], add: [], addMarks: recreateMarks(entry.ids, [entry.template]) }
         case 'erase':

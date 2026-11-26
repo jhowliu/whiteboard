@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createHistory } from './history.ts'
 import { computeBBox, type Stroke, type StrokePoint } from './stroke.ts'
+import type { EngineVideoMark } from './videoMark.ts'
 
 // Issue #6 undo/redo contract (module `src/engine/history.ts`):
 //   createHistory() -> { recordAdd(stroke), recordAddMark(mark), recordErase(strokes[], marks?),
@@ -360,6 +361,128 @@ describe('history', () => {
       const mC = h.undo()!.addMarks[0]!
       expect(new Set([m.id, mA.id, mB.id, mC.id]).size).toBe(4)
       expect(h.undo()).toEqual({ tombstone: [mC.id], add: [], addMarks: [] })
+    })
+  })
+
+  describe('auto-marked stroke add (issue #47)', () => {
+    // Contract:
+    //   recordAdd(stroke: Stroke, mark?: EngineVideoMark): void
+    //   When `mark` is provided, one history entry holds both the stroke and the mark:
+    //   - undo() tombstones both ids in a single step;
+    //   - redo() re-creates both under new ids with equal payloads, remapping ids for any other entries.
+
+    function autoMark(id: string, over: Partial<Omit<EngineVideoMark, 'id'>> = {}): EngineVideoMark {
+      return {
+        id,
+        videoId: 'v1',
+        t: 30,
+        x: 32,
+        y: 120,
+        createdAt: 100,
+        ...over,
+      }
+    }
+
+    it('undo of an auto-marked add tombstones both stroke and mark; redo adds both under new ids', () => {
+      const h = createHistory()
+      const s = stroke('s1')
+      const m = autoMark('m1')
+      const frozenStroke = structuredClone(s)
+      const frozenMark = structuredClone(m)
+
+      h.recordAdd(s, m)
+      expect(h.canUndo).toBe(true)
+
+      const undone = h.undo()!
+      expect([...undone.tombstone].sort()).toEqual(['m1', 's1'])
+      expect(undone.add).toEqual([])
+      expect(undone.addMarks).toEqual([])
+      expect(h.canUndo).toBe(false)
+      expect(h.canRedo).toBe(true)
+
+      const redone = h.redo()!
+      expect(redone.tombstone).toEqual([])
+      expect(redone.add).toHaveLength(1)
+      expect(redone.addMarks).toHaveLength(1)
+      const sCopy = redone.add[0]!
+      const mCopy = redone.addMarks[0]!
+      expect(sCopy.id).not.toBe('s1')
+      expect(sCopy.points).toEqual(s.points)
+      expect(sCopy.color).toBe(s.color)
+      expect(sCopy.size).toBe(s.size)
+      expect(sCopy.tool).toBe(s.tool)
+      expect(sCopy.bbox).toEqual(s.bbox)
+      expect(mCopy.id).not.toBe('m1')
+      expect(mCopy).toMatchObject({ videoId: m.videoId, t: m.t, x: m.x, y: m.y, createdAt: m.createdAt })
+      expect(s).toEqual(frozenStroke)
+      expect(m).toEqual(frozenMark)
+      expect(h.canUndo).toBe(true)
+      expect(h.canRedo).toBe(false)
+
+      // Repeated undo/redo follows the recreated pair of ids.
+      const undoneAgain = h.undo()!
+      expect([...undoneAgain.tombstone].sort()).toEqual([sCopy.id, mCopy.id].sort())
+      expect(undoneAgain.add).toEqual([])
+      expect(undoneAgain.addMarks).toEqual([])
+
+      const redoneAgain = h.redo()!
+      expect(redoneAgain.add[0]!.id).not.toBe(sCopy.id)
+      expect(redoneAgain.addMarks[0]!.id).not.toBe(mCopy.id)
+    })
+
+    it('passing undefined as the optional mark behaves identically to a plain stroke add', () => {
+      const h = createHistory()
+      const s = stroke('s1')
+      h.recordAdd(s, undefined)
+      expect(h.undo()).toEqual({ tombstone: ['s1'], add: [], addMarks: [] })
+      const redone = h.redo()!
+      expect(redone.tombstone).toEqual([])
+      expect(redone.add).toHaveLength(1)
+      expect(redone.addMarks).toEqual([])
+    })
+
+    it('recording an auto-marked add clears the redo stack', () => {
+      const h = createHistory()
+      h.recordAdd(stroke('s1'), autoMark('m1'))
+      h.undo()
+      expect(h.canRedo).toBe(true)
+      h.recordAdd(stroke('s2'), autoMark('m2'))
+      expect(h.canRedo).toBe(false)
+      expect(h.redo()).toBeNull()
+    })
+
+    it('tracks id remapping when the auto-marked stroke or mark is later erased or transformed', () => {
+      const h = createHistory()
+      const s = stroke('s1')
+      const m = autoMark('m1')
+      h.recordAdd(s, m)
+
+      // Erase only the mark, then undo the erase -> mark gets a new id mA.
+      h.recordErase([], [m])
+      const mA = h.undo()!.addMarks[0]!
+      expect(mA.id).not.toBe('m1')
+
+      // Undoing the add must tombstone s1 and mA (not m1).
+      const undoAdd = h.undo()!
+      expect([...undoAdd.tombstone].sort()).toEqual([s.id, mA.id].sort())
+
+      // Redo the add -> new ids sB and mB; redo the erase -> tombstones mB.
+      const redoAdd = h.redo()!
+      const sB = redoAdd.add[0]!
+      const mB = redoAdd.addMarks[0]!
+      expect(mB.id).not.toBe(mA.id)
+      expect(h.redo()).toEqual({ tombstone: [mB.id], add: [], addMarks: [] })
+
+      // Undo the erase -> mC; transform sB -> sMoved; undo transform -> sC; undo add -> tombstones sC and mC.
+      const mC = h.undo()!.addMarks[0]!
+      const movedPoints: StrokePoint[] = sB.points.map(([x, y, p]) => [x + 40, y, p])
+      const sMoved: Stroke = { ...sB, id: 's-moved', points: movedPoints, bbox: computeBBox(movedPoints) }
+      h.recordTransform([sB], [sMoved])
+      const sC = h.undo()!.add[0]!
+      expect(sC.id).not.toBe(sB.id)
+
+      const finalUndo = h.undo()!
+      expect([...finalUndo.tombstone].sort()).toEqual([sC.id, mC.id].sort())
     })
   })
 })

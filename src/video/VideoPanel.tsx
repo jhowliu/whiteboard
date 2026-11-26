@@ -1,6 +1,6 @@
-import { type FormEvent, type Ref, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import { type FormEvent, type Ref, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react'
 import { addVideo, removeVideo, type Video } from '../storage/index.ts'
-import { ClockIcon, PlusIcon, TrashIcon } from '../ui/icons.tsx'
+import { AutoMarkIcon, ClockIcon, PlusIcon, TrashIcon } from '../ui/icons.tsx'
 import { createPlayer, loadYouTubeApi, type VideoPlayer } from './youtube.ts'
 import { parseYouTubeUrl } from './youtubeUrl.ts'
 
@@ -12,8 +12,15 @@ type PendingAdd = {
   start: number
 }
 
+export type VideoPlaybackState = {
+  videoId: string
+  t: number
+  playing: boolean
+}
+
 export type VideoPanelHandle = {
   jumpTo(videoId: string, t: number): void
+  playbackState(): VideoPlaybackState | null
 }
 
 type VideoPanelProps = {
@@ -23,6 +30,8 @@ type VideoPanelProps = {
   loaded: boolean
   videos: Video[]
   activeId: string | null
+  autoMark: boolean
+  onToggleAutoMark: () => void
   onVideoAdded: (video: Video) => void
   onVideoRemoved: (id: string) => void
   onSelectVideo: (id: string) => void
@@ -36,6 +45,8 @@ export default function VideoPanel({
   loaded,
   videos,
   activeId,
+  autoMark,
+  onToggleAutoMark,
   onVideoAdded,
   onVideoRemoved,
   onSelectVideo,
@@ -43,11 +54,15 @@ export default function VideoPanel({
 }: VideoPanelProps) {
   const slotRef = useRef<HTMLDivElement>(null)
   const playerRef = useRef<VideoPlayer | null>(null)
+  const activeIdRef = useRef<string | null>(activeId)
   const mountedKeyRef = useRef<string | null>(null)
   const readyKeyRef = useRef<string | null>(null)
   const pendingJumpRef = useRef<{ videoId: string; t: number } | null>(null)
   const nextRequestIdRef = useRef(1)
   const onVideoAddedRef = useRef(onVideoAdded)
+  useLayoutEffect(() => {
+    activeIdRef.current = activeId
+  }, [activeId])
   useEffect(() => {
     onVideoAddedRef.current = onVideoAdded
   }, [onVideoAdded])
@@ -88,8 +103,23 @@ export default function VideoPanel({
           playerRef.current.play()
           return
         }
+        readyKeyRef.current = null
         setReadyKey(null)
         pendingJumpRef.current = { videoId, t }
+      },
+      playbackState(): VideoPlaybackState | null {
+        const player = playerRef.current
+        const videoId = activeIdRef.current
+        if (!player || !videoId) return null
+        const key = `stored:${videoId}`
+        if (mountedKeyRef.current !== key || readyKeyRef.current !== key) return null
+        const raw = player.currentTime()
+        const t = Number.isFinite(raw) && raw > 0 ? Math.round(raw * 10) / 10 : 0
+        return {
+          videoId,
+          t,
+          playing: player.isPlaying(),
+        }
       },
     }),
     [],
@@ -154,6 +184,7 @@ export default function VideoPanel({
                 if (cancelled) return
                 const storedKey = `stored:${created.id}`
                 // Adopt the running player under the stored video's key so re-render does not recreate it.
+                activeIdRef.current = created.id
                 mountedKeyRef.current = storedKey
                 readyKeyRef.current = storedKey
                 setReadyKey(storedKey)
@@ -206,6 +237,7 @@ export default function VideoPanel({
       return
     }
     pendingJumpRef.current = null
+    readyKeyRef.current = null
     setReadyKey(null)
     setError(null)
     setOffline(false)
@@ -228,6 +260,7 @@ export default function VideoPanel({
     if (!activeId) return
     const removingId = activeId
     pendingJumpRef.current = null
+    readyKeyRef.current = null
     setReadyKey(null)
     await removeVideo(removingId)
     setError(null)
@@ -312,6 +345,7 @@ export default function VideoPanel({
               value={activeId ?? ''}
               onChange={(e) => {
                 pendingJumpRef.current = null
+                readyKeyRef.current = null
                 setReadyKey(null)
                 setError(null)
                 onSelectVideo(e.target.value)
@@ -325,6 +359,17 @@ export default function VideoPanel({
             </select>
           )}
           <div className="video-controls-actions">
+            <button
+              type="button"
+              className="video-control-button"
+              data-testid="video-auto-mark"
+              aria-label="自動時間戳"
+              aria-pressed={autoMark}
+              title="自動時間戳"
+              onClick={onToggleAutoMark}
+            >
+              <AutoMarkIcon />
+            </button>
             <button
               type="button"
               className="video-control-button"

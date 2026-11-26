@@ -97,6 +97,15 @@ export type EngineOptions = {
   onMarkChange?: (change: { removed: string[]; added: EngineVideoMark[] }) => void
   /** Called when a tap (< 4 screen px) lands on a video timestamp mark. */
   onMarkTap?: (mark: EngineVideoMark) => void
+  /**
+   * Called on pointerdown of an ink stroke (pen or highlighter) with `downAt` and the previous committed
+   * ink stroke's `lastInkUpAt` (both from `performance.now()`). May return a function that builds an
+   * auto-mark to commit in the same history entry as the stroke.
+   */
+  onInkStrokeDown?: (info: {
+    downAt: number
+    lastInkUpAt: number | null
+  }) => ((stroke: Stroke) => EngineVideoMark | null) | null
   /** Called when undo/redo availability may have changed. */
   onHistoryChange?: (state: { canUndo: boolean; canRedo: boolean }) => void
   /** Initial finger-drawing state (touch draws instead of panning). */
@@ -120,6 +129,8 @@ type Draft = {
   erasedMarks: EngineVideoMark[]
   /** Mark under the down point for a potential tap-to-jump gesture, or null. */
   tappedMark: EngineVideoMark | null
+  /** Optional auto-mark builder captured at ink stroke pointerdown. */
+  buildAutoMark: ((stroke: Stroke) => EngineVideoMark | null) | null
   finger: boolean
   /** Screen point where the pointer went down. */
   down: Point
@@ -223,6 +234,8 @@ export class Engine {
   private readonly touches = new Map<number, Point>()
   /** `performance.now()` of the latest pen event, including hover. */
   private lastPenAt = -Infinity
+  /** `performance.now()` of the pointerup of the latest committed ink stroke, or null before any ink stroke. */
+  private lastInkUpAt: number | null = null
   /** Whether the current one-finger gesture has moved past PAN_SLOP_PX. */
   private panning = false
   private cssWidth = 0
@@ -625,7 +638,11 @@ export class Engine {
         this.setSelection(null)
       }
     }
-    const tappedMark = mode === 'draw' && isDrawTool(tool) ? markAt(this.videoMarks, screenToWorld(this.camera, at)) : null
+    const isInk = mode === 'draw' && isDrawTool(tool)
+    const tappedMark = isInk ? markAt(this.videoMarks, screenToWorld(this.camera, at)) : null
+    const buildAutoMark = isInk
+      ? (this.options.onInkStrokeDown?.({ downAt: performance.now(), lastInkUpAt: this.lastInkUpAt }) ?? null)
+      : null
     const draft: Draft = {
       pointerId: e.pointerId,
       mode,
@@ -637,6 +654,7 @@ export class Engine {
       erased: [],
       erasedMarks: [],
       tappedMark,
+      buildAutoMark,
       finger,
       down: at,
       at,
@@ -817,6 +835,7 @@ export class Engine {
       this.options.onMarkTap?.(draft.tappedMark)
       return
     }
+    const upAt = performance.now()
     const stroke: Stroke = {
       id: crypto.randomUUID(),
       tool: draft.tool,
@@ -827,9 +846,13 @@ export class Engine {
       simulatePressure: draft.simulatePressure,
       createdAt: Date.now(),
     }
+    const autoMark = draft.buildAutoMark?.(stroke) ?? null
+    this.lastInkUpAt = upAt
     this.strokes.push(stroke)
-    this.history.recordAdd(stroke)
+    if (autoMark) this.videoMarks.push(autoMark)
+    this.history.recordAdd(stroke, autoMark ?? undefined)
     this.options.onStrokeCommit?.(stroke)
+    if (autoMark) this.options.onMarkChange?.({ removed: [], added: [autoMark] })
     this.notifyHistory()
     this.committedDirty = true
     this.requestLive()
