@@ -141,3 +141,12 @@ export const ClockIcon = () => (
     <path d="M9.5 3h5M12 3v2.5" />
   </Icon>
 )
+
+export const AutoMarkIcon = () => (
+  <Icon>
+    <circle cx="10.5" cy="13.5" r="6.5" />
+    <path d="M10.5 10.5v3l2 1.2" />
+    <path d="M8.5 4.5h4" />
+    <path d="M18.5 3.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z" strokeWidth="1.5" />
+  </Icon>
+)

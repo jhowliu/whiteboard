@@ -757,6 +757,11 @@ input {
   background: var(--surface-hover);
 }
 
+.video-control-button[aria-pressed='true'] {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
 .video-remove-button:hover:not(:disabled) {
   color: var(--danger);
 }

@@ -3,12 +3,15 @@ import BoardList from './BoardList.tsx'
 import { exposeDebug, type VideoSnapshot } from './engine/debug.ts'
 import { type ActiveTool, Engine, type EngineVideoMark } from './engine/engine.ts'
 import type { Stroke } from './engine/stroke.ts'
+import { formatTimestamp } from './engine/videoMark.ts'
 import { type LandingTarget, resolveLanding } from './landing.ts'
 import { loadFingerDraw, saveFingerDraw } from './storage/fingerDraw.ts'
 import { loadMinimap, saveMinimap } from './storage/minimap.ts'
+import { loadVideoAutoMark, saveVideoAutoMark } from './storage/videoAutoMark.ts'
 import { loadVideoPanel, saveVideoPanel } from './storage/videoPanel.ts'
 import { loadCamera, saveCamera } from './storage/camera.ts'
 import Minimap from './boards/Minimap.tsx'
+import { autoMarkPlacement, shouldAutoMark } from './video/autoMark.ts'
 import VideoPanel, { type VideoPanelHandle } from './video/VideoPanel.tsx'
 import { loadLastBoardId, saveLastBoardId } from './storage/lastBoard.ts'
 import { readPdfPageSizes } from './engine/pdfRenderer.ts'
@@ -97,24 +100,27 @@ function BoardView({ boardId, onBack }: { boardId: string; onBack: () => void })
   const [history, setHistory] = useState({ canUndo: false, canRedo: false })
   const [minimapOpen, setMinimapOpen] = useState(() => loadMinimap())
   const [videoPanelOpen, setVideoPanelOpen] = useState(() => loadVideoPanel())
+  const [videoAutoMark, setVideoAutoMark] = useState(() => loadVideoAutoMark())
   const [videos, setVideos] = useState<Video[]>([])
   const [activeVideoId, setActiveVideoId] = useState<string | null>(null)
   const [videosLoaded, setVideosLoaded] = useState(false)
   const videoPanelRef = useRef<VideoPanelHandle>(null)
   const videosRef = useRef<Video[]>([])
   const videoPanelOpenRef = useRef(videoPanelOpen)
+  const videoAutoMarkRef = useRef(videoAutoMark)
   const videoSnapshotRef = useRef<VideoSnapshot>({ panelOpen: videoPanelOpen, activeId: null, videos: [] })
   const [engine, setEngine] = useState<Engine | null>(null)
 
   useLayoutEffect(() => {
     videosRef.current = videos
     videoPanelOpenRef.current = videoPanelOpen
+    videoAutoMarkRef.current = videoAutoMark
     videoSnapshotRef.current = {
       panelOpen: videoPanelOpen,
       activeId: activeVideoId,
       videos: videos.map((v) => ({ id: v.id, externalId: v.externalId, title: v.title })),
     }
-  }, [videoPanelOpen, activeVideoId, videos])
+  }, [videoPanelOpen, videoAutoMark, activeVideoId, videos])
 
   useEffect(() => {
     engine?.setLiveVideoIds(videos.map((v) => v.id))
@@ -159,6 +165,13 @@ function BoardView({ boardId, onBack }: { boardId: string; onBack: () => void })
     saveVideoPanel(next)
     videoPanelOpenRef.current = next
     videoSnapshotRef.current = { ...videoSnapshotRef.current, panelOpen: next }
+  }
+
+  const toggleVideoAutoMark = () => {
+    const next = !videoAutoMark
+    setVideoAutoMark(next)
+    saveVideoAutoMark(next)
+    videoAutoMarkRef.current = next
   }
 
   const handleVideoAdded = useCallback((video: Video) => {
@@ -323,6 +336,33 @@ function BoardView({ boardId, onBack }: { boardId: string; onBack: () => void })
         onStrokeChange: ({ removed, added }) => void applyStrokeChanges(boardId, removed, added),
         onMarkChange: ({ removed, added }) => void applyMarkChanges(boardId, removed, added),
         onMarkTap: handleMarkTap,
+        onInkStrokeDown: ({ downAt, lastInkUpAt }) => {
+          const state = videoPanelRef.current?.playbackState()
+          if (!state) return null
+          if (
+            !shouldAutoMark({
+              enabled: videoAutoMarkRef.current,
+              playing: state.playing,
+              lastInkUpAt,
+              downAt,
+            })
+          ) {
+            return null
+          }
+          const { videoId, t } = state
+          const label = formatTimestamp(t)
+          return (stroke) => {
+            const pos = autoMarkPlacement(stroke, label)
+            return {
+              id: crypto.randomUUID(),
+              videoId,
+              t,
+              x: pos.x,
+              y: pos.y,
+              createdAt: stroke.createdAt,
+            }
+          }
+        },
         onHistoryChange: setHistory,
         fingerDraw: loadFingerDraw() ?? true,
         onPenSeen: () => {
@@ -586,6 +626,8 @@ function BoardView({ boardId, onBack }: { boardId: string; onBack: () => void })
           loaded={videosLoaded}
           videos={videos}
           activeId={activeVideoId}
+          autoMark={videoAutoMark}
+          onToggleAutoMark={toggleVideoAutoMark}
           onVideoAdded={handleVideoAdded}
           onVideoRemoved={handleVideoRemoved}
           onSelectVideo={handleSelectVideo}
