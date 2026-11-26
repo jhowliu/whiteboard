@@ -1,4 +1,4 @@
-FROM ghcr.io/jhowliu/agent-cage/base:0.1.2
+FROM ghcr.io/jhowliu/agent-cage/base:0.1.3
 
 # Playwright browsers for `npm run e2e`. Keep the version in sync with
 # @playwright/test in package.json.
