@@ -1,12 +1,22 @@
 import { layoutPdfPages, type PageSize } from '../engine/pdfLayout.ts'
-import { type Board, db as defaultDb, type PdfPage, type StoredStroke, type SyncTable, type WhiteboardDB } from './db.ts'
+import {
+  type Board,
+  db as defaultDb,
+  type PdfPage,
+  type StoredStroke,
+  type SyncTable,
+  type Video,
+  type VideoMark,
+  type WhiteboardDB,
+} from './db.ts'
 
-export type { Board, PdfFile, PdfPage, StoredStroke, WhiteboardDB } from './db.ts'
+export type { Board, PdfFile, PdfPage, StoredStroke, Video, VideoMark, WhiteboardDB } from './db.ts'
 export { db } from './db.ts'
 
 export const DEFAULT_BOARD_TITLE = '未命名白板'
 
 export type NewStroke = Omit<StoredStroke, 'boardId' | 'ownerId' | 'deletedAt'>
+export type NewVideoMark = Omit<VideoMark, 'boardId' | 'ownerId' | 'deletedAt'>
 
 let persistRequested = false
 
@@ -183,6 +193,84 @@ export function createRepository(db: WhiteboardDB) {
     return files.flatMap((f) => (f ? [{ id: f.id, name: f.name }] : []))
   }
 
+  async function addVideo(boardId: string, video: { externalId: string; title: string }): Promise<Video> {
+    const now = Date.now()
+    const row: Video = {
+      id: crypto.randomUUID(),
+      boardId,
+      ownerId: null,
+      provider: 'youtube',
+      externalId: video.externalId,
+      title: video.title,
+      createdAt: now,
+      deletedAt: null,
+    }
+    await db.transaction('rw', db.boards, db.videos, db.outbox, async () => {
+      await db.videos.add(row)
+      const touched = await db.boards.where('id').equals(boardId).modify({ updatedAt: now })
+      await queue(db, 'videos', [row.id])
+      if (touched > 0) await queue(db, 'boards', [boardId])
+    })
+    return row
+  }
+
+  async function listVideos(boardId: string): Promise<Video[]> {
+    if (!(await getBoard(boardId))) return []
+    const rows = await db.videos.where('boardId').equals(boardId).toArray()
+    return rows.filter((v) => v.deletedAt === null).sort((a, b) => a.createdAt - b.createdAt)
+  }
+
+  /** Tombstones the video and touches its board; its timestamp marks are kept. */
+  async function removeVideo(id: string): Promise<void> {
+    await db.transaction('rw', db.videos, db.boards, db.outbox, async () => {
+      const video = await db.videos.get(id)
+      if (!video || video.deletedAt !== null) return
+      const now = Date.now()
+      await db.videos.update(id, { deletedAt: now })
+      const touched = await db.boards.where('id').equals(video.boardId).modify({ updatedAt: now })
+      await queue(db, 'videos', [id])
+      if (touched > 0) await queue(db, 'boards', [video.boardId])
+    })
+  }
+
+  /**
+   * Tombstones `removedIds` and stores `added` in one transaction, rounding each added mark's `t` to 0.1 s.
+   * Ids already tombstoned are skipped.
+   */
+  async function applyMarkChanges(boardId: string, removedIds: string[], added: NewVideoMark[]): Promise<void> {
+    if (removedIds.length === 0 && added.length === 0) return
+    await db.transaction('rw', db.boards, db.videoMarks, db.outbox, async () => {
+      const now = Date.now()
+      const tombstoned: string[] = []
+      for (const id of removedIds) {
+        const mark = await db.videoMarks.get(id)
+        if (!mark || mark.deletedAt !== null) continue
+        await db.videoMarks.update(id, { deletedAt: now })
+        tombstoned.push(id)
+      }
+      for (const mark of added) {
+        await db.videoMarks.put({
+          ...mark,
+          t: Math.round(mark.t * 10) / 10,
+          boardId,
+          ownerId: null,
+          deletedAt: null,
+        })
+      }
+      if (tombstoned.length === 0 && added.length === 0) return
+      const touched = await db.boards.where('id').equals(boardId).modify({ updatedAt: now })
+      await queue(db, 'videoMarks', [...tombstoned, ...added.map((m) => m.id)])
+      if (touched > 0) await queue(db, 'boards', [boardId])
+    })
+  }
+
+  /** Live marks ordered by `createdAt` ascending, including marks whose video was removed. */
+  async function listVideoMarks(boardId: string): Promise<VideoMark[]> {
+    if (!(await getBoard(boardId))) return []
+    const rows = await db.videoMarks.where('boardId').equals(boardId).toArray()
+    return rows.filter((m) => m.deletedAt === null).sort((a, b) => a.createdAt - b.createdAt)
+  }
+
   return {
     createBoard,
     getBoard,
@@ -197,6 +285,11 @@ export function createRepository(db: WhiteboardDB) {
     listPdfPages,
     getPdfBlob,
     listBoardPdfs,
+    addVideo,
+    listVideos,
+    removeVideo,
+    applyMarkChanges,
+    listVideoMarks,
   }
 }
 
@@ -220,4 +313,9 @@ export const {
   listPdfPages,
   getPdfBlob,
   listBoardPdfs,
+  addVideo,
+  listVideos,
+  removeVideo,
+  applyMarkChanges,
+  listVideoMarks,
 } = createRepository(defaultDb)

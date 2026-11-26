@@ -24,6 +24,8 @@ export class MemorySyncBackend implements SyncBackend {
     strokes: new Map(),
     pdfFiles: new Map(),
     pdfPages: new Map(),
+    videos: new Map(),
+    videoMarks: new Map(),
   }
   private readonly pdfs = new Map<string, Blob>()
   private seq = 0
@@ -53,7 +55,7 @@ export class MemorySyncBackend implements SyncBackend {
       const existing = store.get(incoming.id)
       if (!existing) {
         store.set(incoming.id, { row: structuredClone(incoming), syncedAt: this.nextStamp() })
-      } else if (table === 'strokes') {
+      } else if (table === 'strokes' || table === 'videos' || table === 'videoMarks') {
         if (incoming.deletedAt != null && existing.row.deletedAt == null) {
           existing.row.deletedAt = incoming.deletedAt
           existing.syncedAt = this.nextStamp()

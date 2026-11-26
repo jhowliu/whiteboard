@@ -2,7 +2,6 @@ import {
   type Board,
   type PdfFile,
   type PdfPage,
-  type StoredStroke,
   SYNC_TABLES,
   type SyncCursor,
   type SyncTable,
@@ -115,7 +114,7 @@ export function createSyncEngine({ db, backend, getUserId, isOnline = () => navi
         checkSession(userId)
         if (rows.length > 0) await backend.pushRows(table, rows)
       }
-      await db.transaction('rw', db.outbox, db.boards, db.strokes, db.pdfFiles, async () => {
+      await db.transaction('rw', db.tables, async () => {
         checkSession(userId) // inside the transaction that deletes the entries
         await db.outbox.bulkDelete(entries.map((e) => e.id as number))
       })
@@ -137,18 +136,22 @@ export function createSyncEngine({ db, backend, getUserId, isOnline = () => navi
         await db.boards.bulkPut(win)
         return
       }
-      case 'strokes': {
-        const local = await db.strokes.bulkGet(rows.map((r) => r.id))
-        const add: StoredStroke[] = []
+      case 'strokes':
+      case 'videos':
+      case 'videoMarks': {
+        type ImmutableRow = { id: string; deletedAt: number | null }
+        const tbl = db.table<ImmutableRow, string>(table)
+        const local = await tbl.bulkGet(rows.map((r) => r.id))
+        const add: ImmutableRow[] = []
         const tombstone: [string, number][] = []
         rows.forEach((r, i) => {
-          const remote = r as unknown as StoredStroke
+          const remote = r as unknown as ImmutableRow
           const mine = local[i]
           if (!mine) add.push(remote)
           else if (remote.deletedAt !== null && mine.deletedAt === null) tombstone.push([mine.id, remote.deletedAt])
         })
-        await db.strokes.bulkPut(add)
-        for (const [id, deletedAt] of tombstone) await db.strokes.update(id, { deletedAt })
+        await tbl.bulkPut(add)
+        for (const [id, deletedAt] of tombstone) await tbl.update(id, { deletedAt })
         return
       }
       case 'pdfFiles': {

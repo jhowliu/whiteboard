@@ -98,4 +98,36 @@ describe('outbox entries', () => {
     await repo.deleteStroke('s1')
     expect(await db.outbox.count()).toBe(0)
   })
+
+  it('queues video add/remove and mark changes, skipping no-ops', async () => {
+    const board = await repo.createBoard()
+    await db.outbox.clear()
+
+    const video = await repo.addVideo(board.id, { externalId: 'dQw4w9WgXcQ', title: 'Demo' })
+    expect(await entries()).toEqual(expect.arrayContaining([`videos:${video.id}`, `boards:${board.id}`]))
+
+    await db.outbox.clear()
+    await repo.applyMarkChanges(board.id, [], [
+      { id: 'm1', videoId: video.id, t: 10.2, x: 5, y: 10, createdAt: 100 },
+    ])
+    expect(await entries()).toEqual(expect.arrayContaining(['videoMarks:m1', `boards:${board.id}`]))
+
+    await db.outbox.clear()
+    await repo.applyMarkChanges(board.id, ['m1'], [
+      { id: 'm2', videoId: video.id, t: 20.4, x: 15, y: 20, createdAt: 200 },
+    ])
+    expect(await entries()).toEqual(expect.arrayContaining(['videoMarks:m1', 'videoMarks:m2', `boards:${board.id}`]))
+
+    await db.outbox.clear()
+    await repo.applyMarkChanges(board.id, [], [])
+    expect(await db.outbox.count()).toBe(0)
+
+    await db.outbox.clear()
+    await repo.removeVideo(video.id)
+    expect(await entries()).toEqual(expect.arrayContaining([`videos:${video.id}`, `boards:${board.id}`]))
+
+    await db.outbox.clear()
+    await repo.removeVideo(video.id)
+    expect(await db.outbox.count()).toBe(0)
+  })
 })
