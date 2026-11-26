@@ -2,6 +2,7 @@ import { layoutPdfPages, type PageSize } from '../engine/pdfLayout.ts'
 import {
   type Board,
   db as defaultDb,
+  type OutboxEntry,
   type PdfPage,
   type StoredStroke,
   type SyncTable,
@@ -30,6 +31,15 @@ function requestPersistOnce(): void {
   }
 }
 
+type LocalWriteListener = (done: Promise<unknown>) => void
+const localWriteListeners = new Set<LocalWriteListener>()
+
+/** Notifies listeners synchronously whenever a local write on the default database starts. */
+export function onLocalWrite(listener: LocalWriteListener): () => void {
+  localWriteListeners.add(listener)
+  return () => localWriteListeners.delete(listener)
+}
+
 /** Adds one outbox entry per row, in the caller's transaction. Rows are pushed from their current state. */
 async function queue(db: WhiteboardDB, table: SyncTable, rowIds: string[]): Promise<void> {
   if (rowIds.length === 0) return
@@ -39,22 +49,33 @@ async function queue(db: WhiteboardDB, table: SyncTable, rowIds: string[]): Prom
 
 /** The repository over one Dexie database. Every write adds outbox entries in the same transaction. */
 export function createRepository(db: WhiteboardDB) {
-  async function createBoard(title: string = DEFAULT_BOARD_TITLE): Promise<Board> {
-    const now = Date.now()
-    const board: Board = {
-      id: crypto.randomUUID(),
-      ownerId: null,
-      title,
-      createdAt: now,
-      updatedAt: now,
-      deletedAt: null,
+  function trackWrite<T>(p: Promise<T>): Promise<T> {
+    if (db === defaultDb && localWriteListeners.size > 0) {
+      for (const listener of [...localWriteListeners]) listener(p)
     }
-    await db.transaction('rw', db.boards, db.outbox, async () => {
-      await db.boards.add(board)
-      await queue(db, 'boards', [board.id])
-    })
-    requestPersistOnce()
-    return board
+    return p
+  }
+
+  function createBoard(title: string = DEFAULT_BOARD_TITLE): Promise<Board> {
+    return trackWrite(
+      (async () => {
+        const now = Date.now()
+        const board: Board = {
+          id: crypto.randomUUID(),
+          ownerId: null,
+          title,
+          createdAt: now,
+          updatedAt: now,
+          deletedAt: null,
+        }
+        await db.transaction('rw', db.boards, db.outbox, async () => {
+          await db.boards.add(board)
+          await queue(db, 'boards', [board.id])
+        })
+        requestPersistOnce()
+        return board
+      })(),
+    )
   }
 
   async function getBoard(id: string): Promise<Board | undefined> {
@@ -67,34 +88,45 @@ export function createRepository(db: WhiteboardDB) {
     return all.filter((b) => b.deletedAt === null)
   }
 
-  async function modifyLiveBoard(id: string, changes: Partial<Board>): Promise<void> {
-    await db.transaction('rw', db.boards, db.outbox, async () => {
-      const changed = await db.boards
-        .where('id')
-        .equals(id)
-        .filter((b) => b.deletedAt === null)
-        .modify(changes)
-      if (changed > 0) await queue(db, 'boards', [id])
-    })
+  function modifyLiveBoard(id: string, changes: Partial<Board>): Promise<void> {
+    return trackWrite(
+      db.transaction('rw', db.boards, db.outbox, async () => {
+        const changed = await db.boards
+          .where('id')
+          .equals(id)
+          .filter((b) => b.deletedAt === null)
+          .modify(changes)
+        if (changed > 0) await queue(db, 'boards', [id])
+      }),
+    )
   }
 
-  async function renameBoard(id: string, title: string): Promise<void> {
-    await modifyLiveBoard(id, { title, updatedAt: Date.now() })
+  function renameBoard(id: string, title: string): Promise<void> {
+    return modifyLiveBoard(id, { title, updatedAt: Date.now() })
   }
 
-  async function deleteBoard(id: string): Promise<void> {
+  function deleteBoard(id: string): Promise<void> {
     const now = Date.now()
-    await modifyLiveBoard(id, { deletedAt: now, updatedAt: now })
+    return modifyLiveBoard(id, { deletedAt: now, updatedAt: now })
   }
 
   /** Also clears a tombstone when the same stroke is put back (undo of an erase, cancelled eraser gesture). */
-  async function addStroke(boardId: string, stroke: NewStroke): Promise<void> {
-    await db.transaction('rw', db.boards, db.strokes, db.outbox, async () => {
-      await db.strokes.put({ ...stroke, boardId, ownerId: null, deletedAt: null })
-      const touched = await db.boards.where('id').equals(boardId).modify({ updatedAt: Date.now() })
-      await queue(db, 'strokes', [stroke.id])
-      if (touched > 0) await queue(db, 'boards', [boardId])
-    })
+  function addStroke(boardId: string, stroke: NewStroke): Promise<void> {
+    return trackWrite(
+      db.transaction('rw', db.boards, db.strokes, db.outbox, async () => {
+        const now = Date.now()
+        const board = await db.boards.get(boardId)
+        const outboxEntries: OutboxEntry[] = [
+          { table: 'strokes', rowId: stroke.id, createdAt: now },
+          ...(board ? [{ table: 'boards' as const, rowId: boardId, createdAt: now }] : []),
+        ]
+        await Promise.all([
+          db.strokes.put({ ...stroke, boardId, ownerId: null, deletedAt: null }),
+          board ? db.boards.put({ ...board, updatedAt: now }) : Promise.resolve(),
+          db.outbox.bulkAdd(outboxEntries),
+        ])
+      }),
+    )
   }
 
   async function listStrokes(boardId: string): Promise<StoredStroke[]> {
@@ -107,35 +139,55 @@ export function createRepository(db: WhiteboardDB) {
    * Tombstones `removedIds` and stores `added` in one transaction, so a history step or a move/resize is never
    * half-applied (a crash between two writes would otherwise lose the strokes). Ids already tombstoned are skipped.
    */
-  async function applyStrokeChanges(boardId: string, removedIds: string[], added: NewStroke[]): Promise<void> {
-    if (removedIds.length === 0 && added.length === 0) return
-    await db.transaction('rw', db.boards, db.strokes, db.outbox, async () => {
-      const now = Date.now()
-      const tombstoned: string[] = []
-      for (const id of removedIds) {
-        const stroke = await db.strokes.get(id)
-        if (!stroke || stroke.deletedAt !== null) continue
-        await db.strokes.update(id, { deletedAt: now })
-        tombstoned.push(id)
-      }
-      for (const stroke of added) await db.strokes.put({ ...stroke, boardId, ownerId: null, deletedAt: null })
-      const touched = await db.boards.where('id').equals(boardId).modify({ updatedAt: now })
-      await queue(db, 'strokes', [...tombstoned, ...added.map((s) => s.id)])
-      if (touched > 0) await queue(db, 'boards', [boardId])
-    })
+  function applyStrokeChanges(boardId: string, removedIds: string[], added: NewStroke[]): Promise<void> {
+    if (removedIds.length === 0 && added.length === 0) return Promise.resolve()
+    return trackWrite(
+      db.transaction('rw', db.boards, db.strokes, db.outbox, async () => {
+        const now = Date.now()
+        const uniqueRemoved = [...new Set(removedIds)]
+        const [existing, board] = await Promise.all([
+          uniqueRemoved.length > 0 ? db.strokes.bulkGet(uniqueRemoved) : Promise.resolve<(StoredStroke | undefined)[]>([]),
+          db.boards.get(boardId),
+        ])
+        const toTombstone: StoredStroke[] = []
+        for (const s of existing) if (s && s.deletedAt === null) toTombstone.push(s)
+        const toPut: StoredStroke[] = [
+          ...toTombstone.map((s) => ({ ...s, deletedAt: now })),
+          ...added.map((stroke) => ({ ...stroke, boardId, ownerId: null, deletedAt: null })),
+        ]
+        const outboxEntries: OutboxEntry[] = [
+          ...toTombstone.map((s) => ({ table: 'strokes' as const, rowId: s.id, createdAt: now })),
+          ...added.map((s) => ({ table: 'strokes' as const, rowId: s.id, createdAt: now })),
+          ...(board ? [{ table: 'boards' as const, rowId: boardId, createdAt: now }] : []),
+        ]
+        await Promise.all([
+          toPut.length > 0 ? db.strokes.bulkPut(toPut) : Promise.resolve(),
+          board ? db.boards.put({ ...board, updatedAt: now }) : Promise.resolve(),
+          outboxEntries.length > 0 ? db.outbox.bulkAdd(outboxEntries) : Promise.resolve(),
+        ])
+      }),
+    )
   }
 
   /** Tombstones the stroke and touches its board (updatedAt), so a cached board thumbnail is redrawn. */
-  async function deleteStroke(id: string): Promise<void> {
-    await db.transaction('rw', db.strokes, db.boards, db.outbox, async () => {
-      const stroke = await db.strokes.get(id)
-      if (!stroke || stroke.deletedAt !== null) return
-      const now = Date.now()
-      await db.strokes.update(id, { deletedAt: now })
-      const touched = await db.boards.where('id').equals(stroke.boardId).modify({ updatedAt: now })
-      await queue(db, 'strokes', [id])
-      if (touched > 0) await queue(db, 'boards', [stroke.boardId])
-    })
+  function deleteStroke(id: string): Promise<void> {
+    return trackWrite(
+      db.transaction('rw', db.strokes, db.boards, db.outbox, async () => {
+        const stroke = await db.strokes.get(id)
+        if (!stroke || stroke.deletedAt !== null) return
+        const now = Date.now()
+        const board = await db.boards.get(stroke.boardId)
+        const outboxEntries: OutboxEntry[] = [
+          { table: 'strokes', rowId: id, createdAt: now },
+          ...(board ? [{ table: 'boards' as const, rowId: stroke.boardId, createdAt: now }] : []),
+        ]
+        await Promise.all([
+          db.strokes.put({ ...stroke, deletedAt: now }),
+          board ? db.boards.put({ ...board, updatedAt: now }) : Promise.resolve(),
+          db.outbox.bulkAdd(outboxEntries),
+        ])
+      }),
+    )
   }
 
   /** Stores the PDF and one locked page per size, stacked from the viewport origin, in one transaction. */
@@ -193,25 +245,29 @@ export function createRepository(db: WhiteboardDB) {
     return files.flatMap((f) => (f ? [{ id: f.id, name: f.name }] : []))
   }
 
-  async function addVideo(boardId: string, video: { externalId: string; title: string }): Promise<Video> {
-    const now = Date.now()
-    const row: Video = {
-      id: crypto.randomUUID(),
-      boardId,
-      ownerId: null,
-      provider: 'youtube',
-      externalId: video.externalId,
-      title: video.title,
-      createdAt: now,
-      deletedAt: null,
-    }
-    await db.transaction('rw', db.boards, db.videos, db.outbox, async () => {
-      await db.videos.add(row)
-      const touched = await db.boards.where('id').equals(boardId).modify({ updatedAt: now })
-      await queue(db, 'videos', [row.id])
-      if (touched > 0) await queue(db, 'boards', [boardId])
-    })
-    return row
+  function addVideo(boardId: string, video: { externalId: string; title: string }): Promise<Video> {
+    return trackWrite(
+      (async () => {
+        const now = Date.now()
+        const row: Video = {
+          id: crypto.randomUUID(),
+          boardId,
+          ownerId: null,
+          provider: 'youtube',
+          externalId: video.externalId,
+          title: video.title,
+          createdAt: now,
+          deletedAt: null,
+        }
+        await db.transaction('rw', db.boards, db.videos, db.outbox, async () => {
+          await db.videos.add(row)
+          const touched = await db.boards.where('id').equals(boardId).modify({ updatedAt: now })
+          await queue(db, 'videos', [row.id])
+          if (touched > 0) await queue(db, 'boards', [boardId])
+        })
+        return row
+      })(),
+    )
   }
 
   async function listVideos(boardId: string): Promise<Video[]> {
@@ -221,47 +277,59 @@ export function createRepository(db: WhiteboardDB) {
   }
 
   /** Tombstones the video and touches its board; its timestamp marks are kept. */
-  async function removeVideo(id: string): Promise<void> {
-    await db.transaction('rw', db.videos, db.boards, db.outbox, async () => {
-      const video = await db.videos.get(id)
-      if (!video || video.deletedAt !== null) return
-      const now = Date.now()
-      await db.videos.update(id, { deletedAt: now })
-      const touched = await db.boards.where('id').equals(video.boardId).modify({ updatedAt: now })
-      await queue(db, 'videos', [id])
-      if (touched > 0) await queue(db, 'boards', [video.boardId])
-    })
+  function removeVideo(id: string): Promise<void> {
+    return trackWrite(
+      db.transaction('rw', db.videos, db.boards, db.outbox, async () => {
+        const video = await db.videos.get(id)
+        if (!video || video.deletedAt !== null) return
+        const now = Date.now()
+        await db.videos.update(id, { deletedAt: now })
+        const touched = await db.boards.where('id').equals(video.boardId).modify({ updatedAt: now })
+        await queue(db, 'videos', [id])
+        if (touched > 0) await queue(db, 'boards', [video.boardId])
+      }),
+    )
   }
 
   /**
    * Tombstones `removedIds` and stores `added` in one transaction, rounding each added mark's `t` to 0.1 s.
    * Ids already tombstoned are skipped.
    */
-  async function applyMarkChanges(boardId: string, removedIds: string[], added: NewVideoMark[]): Promise<void> {
-    if (removedIds.length === 0 && added.length === 0) return
-    await db.transaction('rw', db.boards, db.videoMarks, db.outbox, async () => {
-      const now = Date.now()
-      const tombstoned: string[] = []
-      for (const id of removedIds) {
-        const mark = await db.videoMarks.get(id)
-        if (!mark || mark.deletedAt !== null) continue
-        await db.videoMarks.update(id, { deletedAt: now })
-        tombstoned.push(id)
-      }
-      for (const mark of added) {
-        await db.videoMarks.put({
-          ...mark,
-          t: Math.round(mark.t * 10) / 10,
-          boardId,
-          ownerId: null,
-          deletedAt: null,
-        })
-      }
-      if (tombstoned.length === 0 && added.length === 0) return
-      const touched = await db.boards.where('id').equals(boardId).modify({ updatedAt: now })
-      await queue(db, 'videoMarks', [...tombstoned, ...added.map((m) => m.id)])
-      if (touched > 0) await queue(db, 'boards', [boardId])
-    })
+  function applyMarkChanges(boardId: string, removedIds: string[], added: NewVideoMark[]): Promise<void> {
+    if (removedIds.length === 0 && added.length === 0) return Promise.resolve()
+    return trackWrite(
+      db.transaction('rw', db.boards, db.videoMarks, db.outbox, async () => {
+        const now = Date.now()
+        const uniqueRemoved = [...new Set(removedIds)]
+        const [existing, board] = await Promise.all([
+          uniqueRemoved.length > 0 ? db.videoMarks.bulkGet(uniqueRemoved) : Promise.resolve<(VideoMark | undefined)[]>([]),
+          db.boards.get(boardId),
+        ])
+        const toTombstone: VideoMark[] = []
+        for (const m of existing) if (m && m.deletedAt === null) toTombstone.push(m)
+        if (toTombstone.length === 0 && added.length === 0) return
+        const toPut: VideoMark[] = [
+          ...toTombstone.map((m) => ({ ...m, deletedAt: now })),
+          ...added.map((mark) => ({
+            ...mark,
+            t: Math.round(mark.t * 10) / 10,
+            boardId,
+            ownerId: null,
+            deletedAt: null,
+          })),
+        ]
+        const outboxEntries: OutboxEntry[] = [
+          ...toTombstone.map((m) => ({ table: 'videoMarks' as const, rowId: m.id, createdAt: now })),
+          ...added.map((m) => ({ table: 'videoMarks' as const, rowId: m.id, createdAt: now })),
+          ...(board ? [{ table: 'boards' as const, rowId: boardId, createdAt: now }] : []),
+        ]
+        await Promise.all([
+          db.videoMarks.bulkPut(toPut),
+          board ? db.boards.put({ ...board, updatedAt: now }) : Promise.resolve(),
+          db.outbox.bulkAdd(outboxEntries),
+        ])
+      }),
+    )
   }
 
   /** Live marks ordered by `createdAt` ascending, including marks whose video was removed. */

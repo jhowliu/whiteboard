@@ -12,8 +12,8 @@ export type Snapshot = {
   viewport: { minX: number; minY: number; maxX: number; maxY: number }
   /** While the minimap is open: panel CSS px = world × scale + (dx, dy). Null while closed. */
   minimap: { scale: number; dx: number; dy: number } | null
-  /** The lasso selection: stroke ids and their world bbox union. Null when nothing is selected. */
-  selection: { ids: string[]; bbox: { minX: number; minY: number; maxX: number; maxY: number } } | null
+  /** The lasso selection: stroke ids, video mark ids, and their world bbox union. Null when nothing is selected. */
+  selection: { ids: string[]; markIds: string[]; bbox: { minX: number; minY: number; maxX: number; maxY: number } } | null
   pdfPages: { id: string; pdfId: string; pageIndex: number; x: number; y: number; width: number; height: number; rendered: boolean }[]
   video: { panelOpen: boolean; activeId: string | null; videos: { id: string; externalId: string; title: string }[] }
   videoMarks: { id: string; videoId: string; t: number; x: number; y: number }[]

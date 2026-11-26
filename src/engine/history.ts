@@ -7,8 +7,18 @@ type Entry =
   | { kind: 'add'; template: Stroke; ids: string[]; markTemplate?: EngineVideoMark; markIds: string[] }
   | { kind: 'addMark'; template: EngineVideoMark; ids: string[] }
   | { kind: 'erase'; templates: Stroke[]; ids: string[]; markTemplates: EngineVideoMark[]; markIds: string[] }
-  /** A move: `before` and `after` are templates; `beforeIds`/`afterIds` are the ids that currently stand for each. */
-  | { kind: 'transform'; before: Stroke[]; after: Stroke[]; beforeIds: string[]; afterIds: string[] }
+  /** A move or resize: `before`/`after` are templates; `beforeIds`/`afterIds` (and mark equivalents) are the current ids. */
+  | {
+      kind: 'transform'
+      before: Stroke[]
+      after: Stroke[]
+      beforeIds: string[]
+      afterIds: string[]
+      beforeMarks: EngineVideoMark[]
+      afterMarks: EngineVideoMark[]
+      beforeMarkIds: string[]
+      afterMarkIds: string[]
+    }
 
 function copy(s: Stroke): Stroke {
   return { ...s, id: crypto.randomUUID(), points: s.points.map((p) => [p[0], p[1], p[2]]), bbox: { ...s.bbox } }
@@ -20,7 +30,7 @@ function copyMark(m: EngineVideoMark): EngineVideoMark {
 
 /** The id lists of an entry that must follow replacements. */
 function idLists(e: Entry): string[][] {
-  if (e.kind === 'transform') return [e.beforeIds, e.afterIds]
+  if (e.kind === 'transform') return [e.beforeIds, e.afterIds, e.beforeMarkIds, e.afterMarkIds]
   if (e.kind === 'erase' || e.kind === 'add') return [e.ids, e.markIds]
   return [e.ids]
 }
@@ -98,15 +108,25 @@ export function createHistory() {
       })
       redoStack.length = 0
     },
-    /** `before[i]` and `after[i]` are the same stroke before and after one move. */
-    recordTransform(before: readonly Stroke[], after: readonly Stroke[]): void {
-      if (before.length === 0 || before.length !== after.length) return
+    /** `before[i]` and `after[i]` are the same stroke/mark before and after one move or resize. */
+    recordTransform(
+      before: readonly Stroke[],
+      after: readonly Stroke[],
+      beforeMarks: readonly EngineVideoMark[] = [],
+      afterMarks: readonly EngineVideoMark[] = [],
+    ): void {
+      if (before.length !== after.length || beforeMarks.length !== afterMarks.length) return
+      if (before.length === 0 && beforeMarks.length === 0) return
       undoStack.push({
         kind: 'transform',
         before: [...before],
         after: [...after],
         beforeIds: before.map((s) => s.id),
         afterIds: after.map((s) => s.id),
+        beforeMarks: [...beforeMarks],
+        afterMarks: [...afterMarks],
+        beforeMarkIds: beforeMarks.map((m) => m.id),
+        afterMarkIds: afterMarks.map((m) => m.id),
       })
       redoStack.length = 0
     },
@@ -126,8 +146,12 @@ export function createHistory() {
             addMarks: recreateMarks(entry.markIds, entry.markTemplates),
           }
         case 'transform': {
-          const tombstone = [...entry.afterIds]
-          return { tombstone, add: recreate(entry.beforeIds, entry.before), addMarks: [] }
+          const tombstone = [...entry.afterIds, ...entry.afterMarkIds]
+          return {
+            tombstone,
+            add: recreate(entry.beforeIds, entry.before),
+            addMarks: recreateMarks(entry.beforeMarkIds, entry.beforeMarks),
+          }
         }
       }
     },
@@ -147,8 +171,12 @@ export function createHistory() {
         case 'erase':
           return { tombstone: [...entry.ids, ...entry.markIds], add: [], addMarks: [] }
         case 'transform': {
-          const tombstone = [...entry.beforeIds]
-          return { tombstone, add: recreate(entry.afterIds, entry.after), addMarks: [] }
+          const tombstone = [...entry.beforeIds, ...entry.beforeMarkIds]
+          return {
+            tombstone,
+            add: recreate(entry.afterIds, entry.after),
+            addMarks: recreateMarks(entry.afterMarkIds, entry.afterMarks),
+          }
         }
       }
     },

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { pointInPolygon, resizeFactor, strokesInLasso, transformStroke } from './lasso.ts'
+import { marksInLasso, pointInPolygon, resizeFactor, strokesInLasso, transformStroke } from './lasso.ts'
 import { computeBBox, type Stroke, type StrokePoint } from './stroke.ts'
+import type { EngineVideoMark } from './videoMark.ts'
 
 // Issue #35 lasso contract (module `src/engine/lasso.ts`, world coordinates):
 //   pointInPolygon(p: {x, y}, polygon: {x, y}[]) -> boolean          (even-odd rule)
@@ -19,6 +20,13 @@ import { computeBBox, type Stroke, type StrokePoint } from './stroke.ts'
 //   transformStroke(stroke, { scale, anchor }) -> points map to anchor + (p - anchor) * scale,
 //     pressure kept, size * scale, bbox recomputed. The translation form above keeps working.
 //   (The function name `resizeFactor` is this test file's choice; the issue does not name it.)
+//
+// Issue #48 lasso marks contract (same module, world coordinates):
+//   marksInLasso(marks: readonly Pick<EngineVideoMark, 'id' | 't' | 'x' | 'y'>[], polygon: readonly LassoPoint[]) -> string[]
+//     ids of the selected marks, in input order; a mark is selected when the centre of its
+//     markRect(mark) lies inside the polygon (pointInPolygon, even-odd rule);
+//     a polygon with fewer than 3 points selects nothing.
+//   (The function name `marksInLasso` is this test file's choice; the issue does not name it.)
 
 type Pt = { x: number; y: number }
 
@@ -294,5 +302,100 @@ describe('transformStroke with a scale about an anchor (issue #36)', () => {
     const snapshot = structuredClone(original)
     transformStroke(original, { scale: 3, anchor: { x: 1, y: 1 } })
     expect(original).toEqual(snapshot)
+  })
+})
+
+describe('marksInLasso (issue #48)', () => {
+  // For t = 192.4 ("3:12", length 4), markWidth = 28 + 8 * 4 = 60, MARK_HEIGHT = 24,
+  // so markRect is [x .. x + 60] x [y - 12 .. y + 12] and its centre is (x + 30, y).
+  // For t = 3725 ("1:02:05", length 7), markWidth = 28 + 8 * 7 = 84, so centre is (x + 42, y).
+  function mkMark(id: string, over: Partial<Omit<EngineVideoMark, 'id'>> = {}): EngineVideoMark {
+    return {
+      id,
+      videoId: 'v1',
+      t: 192.4,
+      x: 20,
+      y: 50,
+      createdAt: 1,
+      ...over,
+    }
+  }
+
+  it('selects a mark whose markRect centre lies inside the polygon', () => {
+    // Centre (50, 50) is inside square [0..100, 0..100].
+    expect(marksInLasso([mkMark('in', { x: 20, y: 50 })], square)).toEqual(['in'])
+  })
+
+  it('rejects a mark whose markRect centre lies outside the polygon', () => {
+    // Centre (150, 50) is outside square [0..100, 0..100].
+    expect(marksInLasso([mkMark('out', { x: 120, y: 50 })], square)).toEqual([])
+  })
+
+  it('uses the markRect centre rather than the left anchor (x, y)', () => {
+    // Anchor (-10, 50) is outside square, but centre (20, 50) is inside -> selected.
+    const anchorOutsideCentreInside = mkMark('a', { x: -10, y: 50 })
+    // Anchor (80, 50) is inside square, but centre (110, 50) is outside -> not selected.
+    const anchorInsideCentreOutside = mkMark('b', { x: 80, y: 50 })
+    // Top of rect (-11) is outside square, but centre (50, 1) is inside -> selected.
+    const topOutsideCentreInside = mkMark('c', { x: 20, y: 1 })
+    // Bottom of rect (+11) is inside square, but centre (50, -1) is outside -> not selected.
+    const bottomInsideCentreOutside = mkMark('d', { x: 20, y: -1 })
+
+    expect(
+      marksInLasso(
+        [anchorOutsideCentreInside, anchorInsideCentreOutside, topOutsideCentreInside, bottomInsideCentreOutside],
+        square,
+      ),
+    ).toEqual(['a', 'c'])
+  })
+
+  it('accounts for timestamp-dependent markRect width when computing the centre', () => {
+    // At x = 65, y = 50:
+    //   short ("3:12", width 60) -> centre (95, 50) inside [0..100, 0..100]
+    //   long ("1:02:05", width 84) -> centre (107, 50) outside [0..100, 0..100]
+    const shortMark = mkMark('short', { x: 65, y: 50, t: 192.4 })
+    const longMark = mkMark('long', { x: 65, y: 50, t: 3725 })
+    expect(marksInLasso([shortMark, longMark], square)).toEqual(['short'])
+  })
+
+  it('handles a concave polygon: centre in the notch is excluded, centres in the arms and base are selected', () => {
+    const notch = mkMark('notch', { x: 20, y: 60 }) // centre (50, 60) in notch
+    const leftArm = mkMark('left', { x: -15, y: 60 }) // centre (15, 60) in left arm
+    const rightArm = mkMark('right', { x: 55, y: 60 }) // centre (85, 60) in right arm
+    const base = mkMark('base', { x: 20, y: 15 }) // centre (50, 15) in base under notch
+    expect(marksInLasso([notch, leftArm, rightArm, base], uShape)).toEqual(['left', 'right', 'base'])
+  })
+
+  it('preserves input order, supports t = 0 and negative coordinates, and does not mutate inputs', () => {
+    const negBox: Pt[] = [
+      { x: -100, y: -100 },
+      { x: 0, y: -100 },
+      { x: 0, y: 0 },
+      { x: -100, y: 0 },
+    ]
+    const marks = [
+      mkMark('m1', { x: -80, y: -50, t: 0 }), // centre (-50, -50) inside
+      mkMark('m2', { x: 50, y: 50, t: 0 }), // centre (80, 50) outside
+      mkMark('m3', { x: -40, y: -20, t: 0 }), // centre (-10, -20) inside
+    ]
+    const frozen = structuredClone(marks)
+    expect(marksInLasso(marks, negBox)).toEqual(['m1', 'm3'])
+    expect(marks).toEqual(frozen)
+  })
+
+  it('returns [] for a polygon with fewer than 3 points or an empty marks list', () => {
+    const inside = mkMark('in', { x: 20, y: 50 })
+    expect(marksInLasso([inside], [])).toEqual([])
+    expect(marksInLasso([inside], [{ x: 0, y: 0 }])).toEqual([])
+    expect(
+      marksInLasso(
+        [inside],
+        [
+          { x: 0, y: 0 },
+          { x: 100, y: 100 },
+        ],
+      ),
+    ).toEqual([])
+    expect(marksInLasso([], square)).toEqual([])
   })
 })

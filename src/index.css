@@ -670,6 +670,7 @@ input {
   flex: none;
   width: 100%;
   aspect-ratio: 16 / 9;
+  height: round(nearest, 56.25vw, 1px);
   background: #111827;
 }
 
@@ -823,6 +824,10 @@ input {
     height: 100%;
     border-bottom: 0;
     border-left: 1px solid var(--border);
+  }
+
+  .video-player-stage {
+    height: auto;
   }
 }
 
