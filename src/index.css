@@ -364,7 +364,9 @@ input {
 
   position: relative;
   display: flex;
+  flex-direction: column;
   flex: 1;
+  min-width: 0;
   min-height: 0;
   background: var(--paper);
   color: var(--fg);
@@ -375,9 +377,19 @@ input {
   -webkit-touch-callout: none;
 }
 
+.board-stage {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
 .board-root {
   position: relative;
   flex: 1;
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
   background: #ffffff; /* white paper in both colour schemes */
 }
@@ -631,6 +643,181 @@ input {
   .minimap {
     width: 144px;
     height: 108px;
+  }
+}
+
+/* ---- Video panel -------------------------------------------------------- */
+
+.video-panel {
+  order: -1;
+  z-index: 12;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 100%;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  color: var(--fg);
+}
+
+.video-panel[hidden] {
+  display: none;
+}
+
+.video-player-stage {
+  position: relative;
+  flex: none;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #111827;
+}
+
+.video-player-stage[hidden] {
+  display: none;
+}
+
+.video-player-slot {
+  width: 100%;
+  height: 100%;
+}
+
+.video-player-slot[hidden] {
+  display: none;
+}
+
+.video-player-slot > iframe,
+.video-player-slot > div {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.video-offline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: 16px;
+  color: #e6edf3;
+  font-size: 14px;
+  text-align: center;
+}
+
+.video-offline.video-error {
+  color: #fca5a5;
+}
+
+.video-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.video-select {
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  font-size: 14px;
+}
+
+.video-controls-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.video-control-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--fg);
+}
+
+.video-control-button:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.video-remove-button:hover:not(:disabled) {
+  color: var(--danger);
+}
+
+.video-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+}
+
+.video-url-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 12px;
+  font-size: 16px; /* 16px+ keeps iPad Safari from zooming on focus */
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.video-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.video-add-button {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.video-add-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 88%, #000000);
+}
+
+.video-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 14px;
+}
+
+.video-status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+@media (orientation: landscape) {
+  .board-screen {
+    flex-direction: row;
+  }
+
+  .video-panel {
+    order: 0;
+    width: 360px;
+    height: 100%;
+    border-bottom: 0;
+    border-left: 1px solid var(--border);
   }
 }
 
