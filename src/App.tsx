@@ -1,7 +1,7 @@
 import { type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import BoardList from './BoardList.tsx'
 import { exposeDebug, type VideoSnapshot } from './engine/debug.ts'
-import { type ActiveTool, Engine } from './engine/engine.ts'
+import { type ActiveTool, Engine, type EngineVideoMark } from './engine/engine.ts'
 import type { Stroke } from './engine/stroke.ts'
 import { type LandingTarget, resolveLanding } from './landing.ts'
 import { loadFingerDraw, saveFingerDraw } from './storage/fingerDraw.ts'
@@ -9,12 +9,13 @@ import { loadMinimap, saveMinimap } from './storage/minimap.ts'
 import { loadVideoPanel, saveVideoPanel } from './storage/videoPanel.ts'
 import { loadCamera, saveCamera } from './storage/camera.ts'
 import Minimap from './boards/Minimap.tsx'
-import VideoPanel from './video/VideoPanel.tsx'
+import VideoPanel, { type VideoPanelHandle } from './video/VideoPanel.tsx'
 import { loadLastBoardId, saveLastBoardId } from './storage/lastBoard.ts'
 import { readPdfPageSizes } from './engine/pdfRenderer.ts'
 import { exportAnnotatedPdf, annotatedFileName } from './engine/pdfExport.ts'
 import {
   addStroke,
+  applyMarkChanges,
   applyStrokeChanges,
   createBoard,
   deleteStroke,
@@ -24,6 +25,7 @@ import {
   listBoards,
   listPdfPages,
   listStrokes,
+  listVideoMarks,
   listVideos,
   type Video,
 } from './storage/index.ts'
@@ -98,11 +100,14 @@ function BoardView({ boardId, onBack }: { boardId: string; onBack: () => void })
   const [videos, setVideos] = useState<Video[]>([])
   const [activeVideoId, setActiveVideoId] = useState<string | null>(null)
   const [videosLoaded, setVideosLoaded] = useState(false)
+  const videoPanelRef = useRef<VideoPanelHandle>(null)
+  const videosRef = useRef<Video[]>([])
   const videoPanelOpenRef = useRef(videoPanelOpen)
   const videoSnapshotRef = useRef<VideoSnapshot>({ panelOpen: videoPanelOpen, activeId: null, videos: [] })
   const [engine, setEngine] = useState<Engine | null>(null)
 
   useLayoutEffect(() => {
+    videosRef.current = videos
     videoPanelOpenRef.current = videoPanelOpen
     videoSnapshotRef.current = {
       panelOpen: videoPanelOpen,
@@ -110,6 +115,37 @@ function BoardView({ boardId, onBack }: { boardId: string; onBack: () => void })
       videos: videos.map((v) => ({ id: v.id, externalId: v.externalId, title: v.title })),
     }
   }, [videoPanelOpen, activeVideoId, videos])
+
+  useEffect(() => {
+    engine?.setLiveVideoIds(videos.map((v) => v.id))
+  }, [engine, videos])
+
+  const handleDropMark = useCallback((videoId: string, t: number) => {
+    const eng = engineRef.current
+    if (!eng) return
+    const anchor = eng.markAnchor()
+    eng.addVideoMark({
+      id: crypto.randomUUID(),
+      videoId,
+      t,
+      x: anchor.x,
+      y: anchor.y,
+      createdAt: Date.now(),
+    })
+  }, [])
+
+  const handleMarkTap = useCallback((mark: EngineVideoMark) => {
+    if (!videosRef.current.some((v) => v.id === mark.videoId)) return
+    if (!videoPanelOpenRef.current) {
+      setVideoPanelOpen(true)
+      saveVideoPanel(true)
+      videoPanelOpenRef.current = true
+      videoSnapshotRef.current = { ...videoSnapshotRef.current, panelOpen: true }
+    }
+    setActiveVideoId(mark.videoId)
+    videoSnapshotRef.current = { ...videoSnapshotRef.current, activeId: mark.videoId }
+    videoPanelRef.current?.jumpTo(mark.videoId, mark.t)
+  }, [])
 
   const toggleMinimap = () => {
     const next = !minimapOpen
@@ -255,8 +291,18 @@ function BoardView({ boardId, onBack }: { boardId: string; onBack: () => void })
       }))
       const pdfPages = await listPdfPages(boardId)
       const loadedVideos = await listVideos(boardId)
+      const loadedMarks = await listVideoMarks(boardId)
       if (cancelled) return
+      const videoMarks: EngineVideoMark[] = loadedMarks.map((m) => ({
+        id: m.id,
+        videoId: m.videoId,
+        t: m.t,
+        x: m.x,
+        y: m.y,
+        createdAt: m.createdAt,
+      }))
       const initialActiveVideoId = loadedVideos[loadedVideos.length - 1]?.id ?? null
+      videosRef.current = loadedVideos
       videoSnapshotRef.current = {
         panelOpen: videoPanelOpenRef.current,
         activeId: initialActiveVideoId,
@@ -268,12 +314,15 @@ function BoardView({ boardId, onBack }: { boardId: string; onBack: () => void })
       const engine = new Engine(host, {
         boardId,
         strokes,
+        videoMarks,
         pdfPages,
         loadPdfBlob,
         camera: loadCamera(boardId),
         onStrokeCommit: (stroke) => void addStroke(boardId, stroke),
         onStrokesDelete: (ids) => ids.forEach((id) => void deleteStroke(id)),
         onStrokeChange: ({ removed, added }) => void applyStrokeChanges(boardId, removed, added),
+        onMarkChange: ({ removed, added }) => void applyMarkChanges(boardId, removed, added),
+        onMarkTap: handleMarkTap,
         onHistoryChange: setHistory,
         fingerDraw: loadFingerDraw() ?? true,
         onPenSeen: () => {
@@ -287,6 +336,7 @@ function BoardView({ boardId, onBack }: { boardId: string; onBack: () => void })
         },
         onCameraChange: (camera) => saveCamera(boardId, camera),
       })
+      engine.setLiveVideoIds(loadedVideos.map((v) => v.id))
       engine.setToolState({ tool, color, size })
       engineRef.current = engine
       setEngine(engine)
@@ -530,6 +580,7 @@ function BoardView({ boardId, onBack }: { boardId: string; onBack: () => void })
       </div>
       {!missing && (
         <VideoPanel
+          ref={videoPanelRef}
           boardId={boardId}
           open={videoPanelOpen}
           loaded={videosLoaded}
@@ -538,6 +589,7 @@ function BoardView({ boardId, onBack }: { boardId: string; onBack: () => void })
           onVideoAdded={handleVideoAdded}
           onVideoRemoved={handleVideoRemoved}
           onSelectVideo={handleSelectVideo}
+          onDropMark={handleDropMark}
         />
       )}
     </div>

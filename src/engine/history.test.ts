@@ -3,11 +3,12 @@ import { createHistory } from './history.ts'
 import { computeBBox, type Stroke, type StrokePoint } from './stroke.ts'
 
 // Issue #6 undo/redo contract (module `src/engine/history.ts`):
-//   createHistory() -> { recordAdd(stroke), recordErase(strokes[]), undo(), redo(), canUndo, canRedo }
+//   createHistory() -> { recordAdd(stroke), recordAddMark(mark), recordErase(strokes[], marks?),
+//     recordTransform(before[], after[]), undo(), redo(), canUndo, canRedo }
 //   undo()/redo() return null when there is nothing to do, otherwise a pure
-//   description `{ tombstone: string[]; add: Stroke[] }` of what the caller must apply.
-//   History never mutates strokes: it only asks for tombstones and for new strokes
-//   (copies with new IDs and equal points). Recording a new action clears redo.
+//   description `{ tombstone: string[]; add: Stroke[]; addMarks: EngineVideoMark[] }` of what the caller must apply.
+//   History never mutates strokes or marks: it only asks for tombstones and for new copies
+//   (with new IDs and equal payload). Recording a new action clears redo.
 
 function stroke(id: string): Stroke {
   const points: StrokePoint[] = [
@@ -42,7 +43,7 @@ describe('history', () => {
     h.recordAdd(s)
     expect(h.canUndo).toBe(true)
 
-    expect(h.undo()).toEqual({ tombstone: ['s1'], add: [] })
+    expect(h.undo()).toEqual({ tombstone: ['s1'], add: [], addMarks: [] })
     expect(h.canUndo).toBe(false)
     expect(h.canRedo).toBe(true)
 
@@ -72,7 +73,7 @@ describe('history', () => {
     const h = createHistory()
     h.recordErase([stroke('a')])
     const created = h.undo()!.add
-    expect(h.redo()).toEqual({ tombstone: created.map((s) => s.id), add: [] })
+    expect(h.redo()).toEqual({ tombstone: created.map((s) => s.id), add: [], addMarks: [] })
   })
 
   it('keeps following the latest copy across repeated undo/redo cycles', () => {
@@ -119,7 +120,7 @@ describe('history', () => {
     h.recordAdd(s)
     h.recordErase([stroke('e')])
     const results = [h.undo(), h.undo(), h.redo(), h.redo()]
-    for (const r of results) expect(Object.keys(r!).sort()).toEqual(['add', 'tombstone'])
+    for (const r of results) expect(Object.keys(r!).sort()).toEqual(['add', 'addMarks', 'tombstone'])
     expect(s).toEqual(stroke('s'))
   })
 
@@ -130,7 +131,7 @@ describe('history', () => {
     h.recordErase([a])
     const restored = h.undo()!.add[0]!
     expect(restored.id).not.toBe('a')
-    expect(h.undo()).toEqual({ tombstone: [restored.id], add: [] })
+    expect(h.undo()).toEqual({ tombstone: [restored.id], add: [], addMarks: [] })
   })
 
   it('keeps following replacements through redo/undo of composed actions', () => {
@@ -142,10 +143,10 @@ describe('history', () => {
     const erased = h.redo()!
     expect(erased.tombstone).toEqual([a1.id])
     const a2 = h.undo()!.add[0]!
-    expect(h.undo()).toEqual({ tombstone: [a2.id], add: [] })
+    expect(h.undo()).toEqual({ tombstone: [a2.id], add: [], addMarks: [] })
     const a3 = h.redo()!.add[0]!
     expect(a3.points).toEqual(a.points)
-    expect(h.redo()).toEqual({ tombstone: [a3.id], add: [] })
+    expect(h.redo()).toEqual({ tombstone: [a3.id], add: [], addMarks: [] })
   })
 
   describe('transform (one move = one entry)', () => {
@@ -209,7 +210,7 @@ describe('history', () => {
 
       const restored = h.undo()!.add[0]!
       expect(restored.id).not.toBe('a')
-      expect(h.undo()).toEqual({ tombstone: [restored.id], add: [] })
+      expect(h.undo()).toEqual({ tombstone: [restored.id], add: [], addMarks: [] })
     })
 
     it('older entries keep following the moved copy through redo and undo of the move', () => {
@@ -222,7 +223,143 @@ describe('history', () => {
       const m1 = h.redo()!.add[0]!
       const r2 = h.undo()!.add[0]!
       expect(new Set([a.id, r1.id, m1.id, r2.id]).size).toBe(4)
-      expect(h.undo()).toEqual({ tombstone: [r2.id], add: [] })
+      expect(h.undo()).toEqual({ tombstone: [r2.id], add: [], addMarks: [] })
+    })
+  })
+
+  describe('video marks (issue #46)', () => {
+    // Contract:
+    //   HistoryOps = { tombstone: string[]; add: Stroke[]; addMarks: EngineVideoMark[] }
+    //   recordAddMark(mark: EngineVideoMark): void
+    //   recordErase(strokes: readonly Stroke[], marks?: readonly EngineVideoMark[]): void
+    type Mark = {
+      id: string
+      videoId: string
+      t: number
+      x: number
+      y: number
+      createdAt: number
+    }
+
+    function mark(id: string, over: Partial<Omit<Mark, 'id'>> = {}): Mark {
+      return {
+        id,
+        videoId: 'v1',
+        t: 192.4,
+        x: 100,
+        y: 200,
+        createdAt: 10,
+        ...over,
+      }
+    }
+
+    it('after a mark add, undo tombstones its id and redo returns addMarks with one copy under a new id', () => {
+      const h = createHistory()
+      const m = mark('m1')
+      const frozen = structuredClone(m)
+      h.recordAddMark(m)
+      expect(h.canUndo).toBe(true)
+
+      expect(h.undo()).toEqual({ tombstone: ['m1'], add: [], addMarks: [] })
+      expect(h.canUndo).toBe(false)
+      expect(h.canRedo).toBe(true)
+
+      const redo = h.redo()!
+      expect(redo.tombstone).toEqual([])
+      expect(redo.add).toEqual([])
+      expect(redo.addMarks).toHaveLength(1)
+      const copy = redo.addMarks[0]!
+      expect(copy.id).not.toBe('m1')
+      expect(copy).toMatchObject({ videoId: m.videoId, t: m.t, x: m.x, y: m.y, createdAt: m.createdAt })
+      expect(m).toEqual(frozen) // original never mutated in place
+
+      // A second undo tombstones the recreated copy, not the original id
+      expect(h.undo()).toEqual({ tombstone: [copy.id], add: [], addMarks: [] })
+    })
+
+    it('recording a mark add clears the redo stack', () => {
+      const h = createHistory()
+      h.recordAddMark(mark('m1'))
+      h.undo()
+      expect(h.canRedo).toBe(true)
+      h.recordAddMark(mark('m2'))
+      expect(h.canRedo).toBe(false)
+      expect(h.redo()).toBeNull()
+    })
+
+    it('after an erase of one stroke and one mark, undo returns both under new ids in a single step', () => {
+      const h = createHistory()
+      const s = stroke('s1')
+      const m = mark('m1')
+      h.recordErase([s], [m])
+      expect(h.canUndo).toBe(true)
+
+      const undone = h.undo()!
+      expect(undone.tombstone).toEqual([])
+      expect(undone.add).toHaveLength(1)
+      expect(undone.addMarks).toHaveLength(1)
+      expect(undone.add[0]!.id).not.toBe('s1')
+      expect(undone.add[0]!.points).toEqual(s.points)
+      expect(undone.addMarks[0]!.id).not.toBe('m1')
+      expect(undone.addMarks[0]).toMatchObject({ videoId: m.videoId, t: m.t, x: m.x, y: m.y, createdAt: m.createdAt })
+      expect(h.canUndo).toBe(false)
+
+      // Redo tombstones both recreated ids in one step
+      const redone = h.redo()!
+      expect(redone.add).toEqual([])
+      expect(redone.addMarks).toEqual([])
+      expect([...redone.tombstone].sort()).toEqual([undone.add[0]!.id, undone.addMarks[0]!.id].sort())
+    })
+
+    it('erasing only marks (no strokes) is undoable and redoable; erasing empty strokes and empty marks is ignored', () => {
+      const h = createHistory()
+      h.recordErase([], [])
+      expect(h.canUndo).toBe(false)
+
+      const m1 = mark('m1', { y: 100 })
+      const m2 = mark('m2', { y: 132 })
+      h.recordErase([], [m1, m2])
+      expect(h.canUndo).toBe(true)
+
+      const undone = h.undo()!
+      expect(undone.tombstone).toEqual([])
+      expect(undone.add).toEqual([])
+      expect(undone.addMarks).toHaveLength(2)
+      for (const copy of undone.addMarks) expect(['m1', 'm2']).not.toContain(copy.id)
+      expect(new Set(undone.addMarks.map((c) => c.id)).size).toBe(2)
+
+      const redone = h.redo()!
+      expect([...redone.tombstone].sort()).toEqual(undone.addMarks.map((c) => c.id).sort())
+      expect(redone.add).toEqual([])
+      expect(redone.addMarks).toEqual([])
+    })
+
+    it('an older entry that refers to an erased mark follows the new id across undo/redo cycles', () => {
+      const h = createHistory()
+      const m = mark('m1')
+      h.recordAddMark(m)
+      h.recordErase([], [m])
+
+      // Undo erase -> mark comes back under a new id m_a
+      const mA = h.undo()!.addMarks[0]!
+      expect(mA.id).not.toBe('m1')
+
+      // Undo the older add -> must tombstone m_a, not m1
+      expect(h.undo()).toEqual({ tombstone: [mA.id], add: [], addMarks: [] })
+
+      // Redo add -> new id m_b
+      const mB = h.redo()!.addMarks[0]!
+      expect(mB.id).not.toBe('m1')
+      expect(mB.id).not.toBe(mA.id)
+      expect(mB).toMatchObject({ videoId: m.videoId, t: m.t, x: m.x, y: m.y })
+
+      // Redo erase -> must tombstone m_b
+      expect(h.redo()).toEqual({ tombstone: [mB.id], add: [], addMarks: [] })
+
+      // Undo erase -> new id m_c; undo add -> tombstones m_c
+      const mC = h.undo()!.addMarks[0]!
+      expect(new Set([m.id, mA.id, mB.id, mC.id]).size).toBe(4)
+      expect(h.undo()).toEqual({ tombstone: [mC.id], add: [], addMarks: [] })
     })
   })
 })
